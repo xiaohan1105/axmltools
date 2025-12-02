@@ -32,7 +32,8 @@ git push axmltools stable-nov14:main
 
 - **远程仓库**: https://github.com/xiaohan1105/axmltools
 - **远程名称**: `axmltools`
-- **推送命令**: `git push axmltools stable-nov14:main`
+- **工作分支**: `clean-main`（无敏感历史记录）
+- **推送命令**: `git push axmltools clean-main:main`
 
 ### 敏感信息处理
 
