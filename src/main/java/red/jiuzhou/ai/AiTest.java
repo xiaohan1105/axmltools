@@ -1,0 +1,15 @@
+package red.jiuzhou.ai;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+public class AiTest {
+    public static void main(String[] args) {
+        AiModelClient client = AiModelFactory.getClient("qwen");
+        String prompt = "\"请你帮我改写以下内容（使用@分割），将其内容替换为《哈利波特》风格的内容，直接返回结果,例如输入a@b，返回c@d\"：\n" +
+                "莫尔海姆饰带!@#侵略者之腰带!@#侵略者之饰带!@#贝鲁斯兰腰带!@#贝鲁斯兰饰带!@#复仇之腰带!@#复仇之饰带!@#热情之戒!@#嫉妒之戒!@#爱情之戒!@#姆姆族结婚戒指!@#姆姆族结婚戒指!@#姆姆族结婚戒指!@#古代魂灵之戒!@#穆您之腰带!@#奥黛尔拉汤!@#添加奥黛尔拉粉末的汤。在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%提高[%e1.StatUp.Value]点，[%e2.StatUp.StatName]%提高[%e2.StatUp.Value]点。!@#普古斯肉脯!@#普古斯肉切成薄片后晒干制成的肉脯。在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%提高[%e1.StatUp.Value]点。!@#昏睡蘑菇!@#吃了之后会打瞌睡，但好像没有毒。在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%提高[%e1.StatUp.Value]点，[%e2.StatUp.StatName]%提高[%e2.StatUp.Value]点，但所有能力值降低15点。!@#移动速度上升卷轴!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%提高[%e1.StatUp.Value]%%。!@#克拉尔之大剑!@#重量太重，无法用作武器。!@#椰林族的愤怒!@#含有椰林族的愤怒。在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%提高[%e1.StatUp.Value]点。!@#安杰丽卡软膏!@#用安杰丽卡制作的软膏。生命力恢复[%e1.ProcHeal_Instant.Heal]点。!@#爱南特的项链!@#增加生命力恢复量和精神力恢复量!@#昏睡蘑菇效果!@#移动速度增加!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%提高[%e1.StatUp.Value]点，[%e2.StatUp.StatName]%提高[%e2.StatUp.Value]点。!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%提高[%e1.StatUp.Value]点，[%e2.StatUp.StatName]%提高[%e2.StatUp.Value]点，，但所有能力值降低15点。!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%提高[%e1.StatUp.Value]%%。!@#库拉卡的面具!@#萤火虫津液!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#蒸海伊布!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#火之结晶!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#蜜茶!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#百兽之王的咆哮!@#百兽之王的保佑!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#棕熊牛排!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#闪光的蘑菇!@#恢复生命力[%e1.ProcHeal_Instant.Heal]点。!@#盖尔盖尔果汁!@#盖尔盖尔面包!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#蝎兽的毒针!@#在一定时间内使敌人中毒，受到持续伤害。!@#德雷克的记忆!@#在10分钟时间内变身成德雷克.!@#普斯谷的记忆!@#10分钟时间内变身为普斯谷。!@#备用粮!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#莱卡恩之护符!@#在[%e1.StatUp.RemainTime]时间内，[%e1.StatUp.StatName]%增加[%e1.StatUp.Value]点。!@#火之剑!@#火焰之剑!@#幽冥之火花!@#普斯谷变身效果!@#10分钟时间内变身为普斯谷。!@#德雷克变身效果!@#在10分钟时间内变身成德雷克.!@#蝎兽的毒针效果!@#使对方中毒30秒。!@#基纳!@#烙印之石碎片!@#现在不使用的道具。!@#受损的提取工具!@#1级强化石!@#2级强化石!@#3级强化石!@#4级强化石!@#5级强化石!@#6级强化石!@#7级强化石!@#8级强化石!@#9级强化石!@#10级强化石!@#11级强化石!@#12级强化石!@#13级强化石!@#14级强化石!@#15级强化石!@#16级强化石!@#17级强化石!@#18级强化石!@#19级强化石!@#20级强化石";
+        log.info("输入内容：\n" + prompt);
+        String response = client.chat(prompt);
+        log.info("返回内容：\n" + response);
+    }
+}
