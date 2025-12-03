@@ -33,6 +33,7 @@ import red.jiuzhou.ui.features.FeatureLauncher;
 import red.jiuzhou.ui.features.FeatureRegistry;
 import red.jiuzhou.ui.features.FeatureTaskExecutor;
 import red.jiuzhou.ui.features.StageFeatureLauncher;
+import red.jiuzhou.analysis.aion.IdNameResolver;
 import red.jiuzhou.util.AIAssistant;
 import red.jiuzhou.util.DatabaseUtil;
 import red.jiuzhou.util.IncrementalMenuJsonGenerator;
@@ -364,34 +365,23 @@ public class Dbxmltool extends Application {
             "→ 统计分析游戏数值"
         ));
 
-        // SQL转换按钮 - 不同数据库SQL语法转换
-        Button sqlConverterBtn = new Button("🔄 数据转换");
-        sqlConverterBtn.setTooltip(new Tooltip(
-            "跨表/跨库数据转换工具\n\n" +
+        // 数据操作中心按钮 - 整合导入/导出/同步/编辑功能
+        Button dataOperationBtn = new Button("📊 数据操作");
+        dataOperationBtn.setTooltip(new Tooltip(
+            "数据操作中心 - 一站式数据管理\n\n" +
             "🎯 核心功能:\n" +
-            "• 自动生成INSERT/UPDATE语句\n" +
-            "• 支持字段映射和数据转换\n" +
-            "• 批量选择ID进行转换\n" +
-            "• 一键导出SQL脚本\n\n" +
+            "• 📤 数据导出 (DB → XML)\n" +
+            "• 📥 数据导入 (XML → DB)\n" +
+            "• 🔁 表同步 (客户端 ↔ 服务端)\n" +
+            "• ✏️ 批量编辑\n\n" +
+            "✨ 特色功能:\n" +
+            "• ID自动显示对应NAME\n" +
+            "• 操作前自动备份\n" +
+            "• 变更预览确认\n\n" +
             "💡 适用场景:\n" +
-            "→ 客户端服务端数据互相转换\n" +
-            "→ 测试数据迁移到正式环境\n" +
-            "→ 不同数据库版本数据同步"
-        ));
-
-        // 数据同步按钮 - 数据库表之间的数据同步
-        Button syncTableBtn = new Button("🔁 表同步");
-        syncTableBtn.setTooltip(new Tooltip(
-            "数据库表结构和数据同步\n\n" +
-            "🎯 核心功能:\n" +
-            "• 表结构差异对比\n" +
-            "• 数据增量同步\n" +
-            "• 支持跨库同步\n" +
-            "• 同步日志追踪\n\n" +
-            "💡 适用场景:\n" +
-            "→ 开发库与测试库同步\n" +
-            "→ 新增字段快速推全\n" +
-            "→ 配置表批量更新"
+            "→ 日常数据导入导出\n" +
+            "→ 客户端服务端数据同步\n" +
+            "→ 批量修改游戏配置"
         ));
 
         // ==================== 数据处理模块 ====================
@@ -617,25 +607,17 @@ public class Dbxmltool extends Application {
             }
         });
 
-        // SQL转换 - 打开SQL转换工具
-        sqlConverterBtn.setOnAction(e -> {
+        // 数据操作中心 - 打开统一的数据操作窗口
+        dataOperationBtn.setOnAction(e -> {
             try {
-                log.info("打开SQL转换工具");
-                new SQLConverterApp().show(primaryStage);
+                log.info("打开数据操作中心");
+                // 预加载ID->NAME缓存
+                IdNameResolver.getInstance().preloadAllSystems();
+                DataOperationCenterStage stage = new DataOperationCenterStage(primaryStage);
+                stage.show();
             } catch (Exception ex) {
-                log.error("打开SQL转换工具失败", ex);
-                showError("打开SQL转换工具失败: " + ex.getMessage());
-            }
-        });
-
-        // 数据同步 - 打开表同步工具
-        syncTableBtn.setOnAction(event -> {
-            try {
-                log.info("打开数据同步工具");
-                new TableSyncApp(primaryStage).show();
-            } catch (Exception e) {
-                log.error("打开数据同步工具失败", e);
-                showError("打开数据同步工具失败: " + e.getMessage());
+                log.error("打开数据操作中心失败", ex);
+                showError("打开数据操作中心失败: " + ex.getMessage());
             }
         });
 
@@ -717,23 +699,23 @@ public class Dbxmltool extends Application {
         javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // 组装工具栏:按功能模块分组
-        // [数据管理] | [查询工具] | [分析工具] | [数据处理] | [安全管理] ... [状态信息]
+        // 组装工具栏:按功能模块分组（优化后的布局，更符合设计师直觉）
+        // [数据浏览] | [数据操作] | [关系分析] | [设计洞察] | [安全管理] ... [状态信息]
         toolBar.getItems().addAll(
-            // 数据管理模块
-            confButton, relationButton, addDirectoryBtn,
+            // 数据浏览模块 - 查看和配置数据源
+            confButton, addDirectoryBtn,
             new Separator(),
-            // 查询工具模块
-            newQueryBtn, sqlConverterBtn, syncTableBtn,
+            // 数据操作模块 - 统一的数据操作入口
+            newQueryBtn, dataOperationBtn, dataValidationBtn,
             new Separator(),
-            // 分析工具模块
-            mechanismExplorerBtn, designInsightBtn, mechanismRelationBtn,
+            // 关系分析模块 - 字段关联和机制关系
+            relationButton, mechanismRelationBtn,
             new Separator(),
-            // 数据处理模块
-            searchReplaceBtn, dataValidationBtn, batchRewriteBtn,
+            // 设计洞察模块 - AI分析和可视化
+            mechanismExplorerBtn, designInsightBtn,
             new Separator(),
-            // 安全管理模块
-            emergencyRecoveryBtn, operationMonitorBtn, backupManagerBtn,
+            // 数据处理模块 - 搜索和备份
+            searchReplaceBtn, backupManagerBtn,
             // 状态信息区域
             spacer, statusLabel
         );

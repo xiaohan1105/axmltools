@@ -26,6 +26,7 @@ import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.util.StringUtils;
+import red.jiuzhou.analysis.aion.IdNameResolver;
 import red.jiuzhou.dbxml.*;
 import red.jiuzhou.util.DatabaseUtil;
 import red.jiuzhou.util.JSONRecord;
@@ -221,12 +222,47 @@ public class PaginatedTable{
             log.info("sampleData_size:{}", sampleData.size());
             Map<String, Object> firstRow = sampleData.get(0);
 
+            // ID->NAME解析器实例
+            final IdNameResolver idNameResolver = IdNameResolver.getInstance();
+
             // 创建列
             for (String columnName : firstRow.keySet()) {
                 TableColumn<Map<String, Object>, Object> column = new TableColumn<>(columnName);
                 column.setCellValueFactory(cellData ->
                         new ReadOnlyObjectWrapper<>(cellData.getValue().get(columnName))
                 );
+
+                // 检测是否是ID引用字段，添加NAME显示
+                final boolean isIdField = idNameResolver.isIdField(columnName);
+                if (isIdField) {
+                    final String colName = columnName;
+                    column.setCellFactory(col -> new TableCell<Map<String, Object>, Object>() {
+                        @Override
+                        protected void updateItem(Object item, boolean empty) {
+                            super.updateItem(item, empty);
+                            if (empty || item == null) {
+                                setText(null);
+                                setTooltip(null);
+                            } else {
+                                String idValue = item.toString();
+                                String formattedValue = idNameResolver.formatIdWithName(colName, idValue);
+                                setText(formattedValue);
+                                // 如果有NAME，添加详细提示
+                                if (!formattedValue.equals(idValue)) {
+                                    String name = idNameResolver.resolveByField(colName, idValue);
+                                    Tooltip tip = new Tooltip(
+                                        "ID: " + idValue + "\n" +
+                                        "名称: " + name + "\n" +
+                                        "字段: " + colName
+                                    );
+                                    setTooltip(tip);
+                                }
+                            }
+                        }
+                    });
+                    // 标记ID列（可选：改变标题样式）
+                    column.setText(columnName + " \u279C");  // 添加箭头标记
+                }
 
                 // 右键菜单
                 ContextMenu contextMenu = new ContextMenu();
