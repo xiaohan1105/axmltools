@@ -41,6 +41,7 @@ import red.jiuzhou.util.YamlUtils;
 import red.jiuzhou.util.YmlConfigUtil;
 import red.jiuzhou.ui.components.EnhancedStatusBar;
 import red.jiuzhou.ui.components.HotkeyManager;
+import red.jiuzhou.ui.components.SearchableTreeView;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -170,9 +171,10 @@ public class Dbxmltool extends Application {
         leftControl.setSpacing(8);
         leftControl.setPadding(new Insets(8));
 
-        // 读取左侧菜单配置并创建菜单树
+        // 读取左侧菜单配置并创建可搜索菜单树（增强版）
         String leftMenuJson = FileUtil.readUtf8String(YamlUtils.getProperty("file.homePath") + File.separator + "leftMenu.json");
-        TreeView<String> leftMenu = example.createLeftMenu(leftMenuJson, tabPane);
+        SearchableTreeView<String> searchableMenu = example.createSearchableLeftMenu(leftMenuJson, tabPane);
+        TreeView<String> leftMenu = searchableMenu.getTreeView();  // 获取内部TreeView用于兼容
 
         // ==================== 创建快捷操作按钮组 ====================
         // 提供常用的文件和目录操作功能
@@ -231,9 +233,9 @@ public class Dbxmltool extends Application {
 
         // 组装左侧面板
         leftControl.getChildren().add(quickActions);
-        leftControl.getChildren().add(leftMenu);
+        leftControl.getChildren().add(searchableMenu);  // 使用可搜索菜单树
         // 让菜单树占满可用空间
-        VBox.setVgrow(leftMenu, Priority.ALWAYS);
+        VBox.setVgrow(searchableMenu, Priority.ALWAYS);
 
         // ==================== 组装主界面 ====================
         // 添加左右分割面板

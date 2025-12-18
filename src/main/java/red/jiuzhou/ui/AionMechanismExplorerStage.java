@@ -15,6 +15,8 @@ import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import red.jiuzhou.analysis.aion.*;
+import red.jiuzhou.ui.components.DashboardPanel;
+import red.jiuzhou.ui.components.StatCard;
 import red.jiuzhou.util.YamlUtils;
 
 import java.io.File;
@@ -60,6 +62,12 @@ public class AionMechanismExplorerStage extends Stage {
     private ProgressIndicator progressIndicator;
     private VBox referenceBox;
     private FlowPane referenceTagsPane;
+
+    // 统计仪表盘组件
+    private StatCard mechanismCountCard;
+    private StatCard fileCountCard;
+    private StatCard publicFileCard;
+    private StatCard localizedFileCard;
 
     // 数据
     private AionMechanismView mechanismView;
@@ -162,6 +170,9 @@ public class AionMechanismExplorerStage extends Stage {
 
         titleBox.getChildren().addAll(titleLabel, progressIndicator, backBtn, refreshBtn, spacer);
 
+        // 统计卡片区域
+        HBox statsBox = createStatsPanel();
+
         // 面包屑导航
         breadcrumbBox = new HBox(5);
         breadcrumbBox.setAlignment(Pos.CENTER_LEFT);
@@ -170,8 +181,61 @@ public class AionMechanismExplorerStage extends Stage {
                 "-fx-border-color: #e0e0e0; -fx-border-radius: 5;");
         updateBreadcrumb();
 
-        box.getChildren().addAll(titleBox, breadcrumbBox);
+        box.getChildren().addAll(titleBox, statsBox, breadcrumbBox);
         return box;
+    }
+
+    /**
+     * 创建统计面板
+     */
+    private HBox createStatsPanel() {
+        HBox statsBox = new HBox(12);
+        statsBox.setAlignment(Pos.CENTER_LEFT);
+        statsBox.setPadding(new Insets(5, 0, 5, 0));
+
+        // 机制数量卡片
+        mechanismCountCard = StatCard.create("🎮", "游戏机制", "27", StatCard.COLOR_PRIMARY)
+                .small()
+                .subtitle("分类系统")
+                .tooltip("Aion游戏的27个核心机制分类");
+
+        // 文件数量卡片
+        fileCountCard = StatCard.create("📁", "配置文件", "0", StatCard.COLOR_INFO)
+                .small()
+                .subtitle("扫描中...")
+                .tooltip("已检测到的XML配置文件总数");
+
+        // 公共文件卡片
+        publicFileCard = StatCard.create("🌐", "公共文件", "0", StatCard.COLOR_SUCCESS)
+                .small()
+                .subtitle("全区通用")
+                .tooltip("公共目录下的配置文件");
+
+        // 本地化文件卡片
+        localizedFileCard = StatCard.create("🇨🇳", "本地化文件", "0", StatCard.COLOR_WARNING)
+                .small()
+                .subtitle("China区")
+                .tooltip("本地化目录下的配置文件");
+
+        statsBox.getChildren().addAll(mechanismCountCard, fileCountCard, publicFileCard, localizedFileCard);
+        return statsBox;
+    }
+
+    /**
+     * 更新统计卡片数据
+     */
+    private void updateStatsCards() {
+        if (mechanismView == null) return;
+
+        AionMechanismView.Statistics stats = mechanismView.getStatistics();
+
+        Platform.runLater(() -> {
+            mechanismCountCard.valueAnimated(String.valueOf(stats.getCategoryTypeCount()));
+            fileCountCard.valueAnimated(String.valueOf(stats.getTotalFiles()))
+                    .subtitle(stats.getTotalFiles() + " 个文件");
+            publicFileCard.valueAnimated(String.valueOf(stats.getPublicFiles()));
+            localizedFileCard.valueAnimated(String.valueOf(stats.getLocalizedFiles()));
+        });
     }
 
     /**
@@ -548,6 +612,7 @@ public class AionMechanismExplorerStage extends Stage {
 
                 Platform.runLater(() -> {
                     updateMechanismCards();
+                    updateStatsCards();  // 更新统计卡片
                     progressIndicator.setVisible(false);
                     statusLabel.setText(mechanismView.getStatistics().getSummary());
                 });

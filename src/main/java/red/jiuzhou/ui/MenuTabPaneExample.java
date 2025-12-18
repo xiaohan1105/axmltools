@@ -4,8 +4,11 @@ import cn.hutool.core.io.FileUtil;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import javafx.scene.control.*;
+import javafx.scene.layout.VBox;
+import javafx.scene.layout.Priority;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import red.jiuzhou.ui.components.SearchableTreeView;
 import red.jiuzhou.util.AIAssistant;
 import red.jiuzhou.util.YamlUtils;
 
@@ -119,6 +122,73 @@ public class MenuTabPaneExample {
         });
 
         return treeView;
+    }
+
+    /**
+     * 创建可搜索的左侧菜单（增强版）
+     * 支持实时搜索过滤、高亮匹配、上下导航
+     *
+     * @param json    菜单JSON配置
+     * @param tabPane Tab容器
+     * @return 可搜索的菜单树组件
+     */
+    public SearchableTreeView<String> createSearchableLeftMenu(String json, TabPane tabPane) {
+        JSONObject rootNode = JSONObject.parseObject(json);
+
+        TreeItem<String> rootItem = new TreeItem<>(rootNode.getString("name"));
+
+        // 递归创建菜单项
+        if (rootNode.containsKey("children")) {
+            createMenuItemsForSearchable(rootNode.getJSONArray("children"), rootItem);
+        }
+
+        // 创建可搜索树视图
+        SearchableTreeView<String> searchableTree = new SearchableTreeView<>();
+        searchableTree.setRoot(rootItem);
+        searchableTree.setShowRoot(false);
+
+        // 设置搜索匹配器（支持模糊搜索）
+        searchableTree.setSearchMatcher((item, keyword) -> {
+            if (item == null) return false;
+            String itemLower = item.toLowerCase();
+            String keywordLower = keyword.toLowerCase();
+            // 支持拼音首字母匹配（简化版：只做包含匹配）
+            return itemLower.contains(keywordLower);
+        });
+
+        // 设置选择事件
+        searchableTree.setOnItemSelected(selected -> {
+            if (selected != null && selected.getValue() != null) {
+                // 如果是叶子节点，才创建Tab
+                if (selected.getChildren().isEmpty()) {
+                    createTab(tabPane, selected.getValue(), getTabFullPath(selected));
+                }
+            }
+        });
+
+        // 设置双击事件
+        searchableTree.setOnItemDoubleClicked(item -> {
+            if (item != null && item.getValue() != null && item.getChildren().isEmpty()) {
+                createTab(tabPane, item.getValue(), getTabFullPath(item));
+            }
+        });
+
+        return searchableTree;
+    }
+
+    /**
+     * 递归创建菜单项（用于可搜索树）
+     */
+    private void createMenuItemsForSearchable(JSONArray children, TreeItem<String> parentItem) {
+        for (int i = 0; i < children.size(); i++) {
+            JSONObject childNode = children.getJSONObject(i);
+            TreeItem<String> item = new TreeItem<>(childNode.getString("name"));
+            parentItem.getChildren().add(item);
+            // 递归调用
+            if (childNode.containsKey("children")) {
+                createMenuItemsForSearchable(childNode.getJSONArray("children"), item);
+            }
+        }
     }
 
 

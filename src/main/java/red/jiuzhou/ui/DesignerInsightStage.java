@@ -31,6 +31,7 @@ import red.jiuzhou.analysis.XmlDesignerInsight.ValueCount;
 import red.jiuzhou.analysis.XmlDesignerInsight.RelatedFileComparison;
 import red.jiuzhou.analysis.XmlDesignerInsight.XmlFileSummary;
 import red.jiuzhou.analysis.XmlDesignerInsightService;
+import red.jiuzhou.ui.components.StatCard;
 import red.jiuzhou.ui.features.FeatureTaskExecutor;
 
 import java.awt.Desktop;
@@ -78,6 +79,12 @@ public class DesignerInsightStage extends Stage {
     private final Button openFileButton = new Button("打开文件");
     private final Button openFolderButton = new Button("打开目录");
     private final Map<String, AttributeValueDistribution> distributionIndex = new HashMap<>();
+
+    // 统计卡片
+    private StatCard recordCountCard;
+    private StatCard fieldCountCard;
+    private StatCard completenessCard;
+    private StatCard issueCountCard;
 
     private XmlDesignerInsight currentInsight;
     private Path currentPath;
@@ -164,7 +171,11 @@ public class DesignerInsightStage extends Stage {
         openFolderButton.setOnAction(e -> revealInExplorer());
         HBox actionBar = new HBox(8, openFileButton, openFolderButton);
         actionBar.setAlignment(Pos.CENTER_LEFT);
-        header.getChildren().addAll(fileTitle, fileMeta, actionBar);
+
+        // 统计卡片区域
+        HBox statsBox = createInsightStatsPanel();
+
+        header.getChildren().addAll(fileTitle, fileMeta, actionBar, statsBox);
 
         TabPane tabPane = new TabPane();
         tabPane.getTabs().add(buildOverviewTab());
@@ -654,6 +665,95 @@ public class DesignerInsightStage extends Stage {
         return tab;
     }
 
+    /**
+     * 创建洞察统计面板
+     */
+    private HBox createInsightStatsPanel() {
+        HBox statsBox = new HBox(10);
+        statsBox.setAlignment(Pos.CENTER_LEFT);
+        statsBox.setPadding(new Insets(8, 0, 8, 0));
+
+        // 记录数卡片
+        recordCountCard = StatCard.create("📝", "记录数", "-", StatCard.COLOR_PRIMARY)
+                .small()
+                .tooltip("XML文件中的数据记录总数");
+
+        // 字段数卡片
+        fieldCountCard = StatCard.create("📋", "字段数", "-", StatCard.COLOR_INFO)
+                .small()
+                .tooltip("检测到的字段/属性数量");
+
+        // 完整度卡片
+        completenessCard = StatCard.create("✓", "完整度", "-", StatCard.COLOR_SUCCESS)
+                .small()
+                .tooltip("数据完整度评估");
+
+        // 问题数卡片
+        issueCountCard = StatCard.create("⚠", "问题", "-", StatCard.COLOR_WARNING)
+                .small()
+                .tooltip("检测到的数据问题和建议数量");
+
+        statsBox.getChildren().addAll(recordCountCard, fieldCountCard, completenessCard, issueCountCard);
+        return statsBox;
+    }
+
+    /**
+     * 更新洞察统计卡片
+     */
+    private void updateInsightStats(XmlDesignerInsight insight) {
+        if (insight == null) {
+            recordCountCard.value("-");
+            fieldCountCard.value("-");
+            completenessCard.value("-");
+            issueCountCard.value("-");
+            return;
+        }
+
+        Platform.runLater(() -> {
+            // 记录数
+            int entryCount = insight.getEntryCount();
+            recordCountCard.valueAnimated(String.valueOf(entryCount));
+
+            // 字段数
+            List<AttributeInsight> attrs = insight.getAttributeInsights();
+            if (attrs != null) {
+                fieldCountCard.valueAnimated(String.valueOf(attrs.size()));
+            }
+
+            // 完整度 - 计算平均覆盖率
+            if (attrs != null && !attrs.isEmpty() && entryCount > 0) {
+                double avgCoverage = attrs.stream()
+                        .mapToDouble(attr -> 100.0 * attr.getPresentCount() / entryCount)
+                        .average()
+                        .orElse(0);
+                completenessCard.valueAnimated(String.format("%.0f%%", avgCoverage));
+
+                // 根据完整度设置颜色
+                if (avgCoverage >= 80) {
+                    completenessCard.color(StatCard.COLOR_SUCCESS);
+                } else if (avgCoverage >= 50) {
+                    completenessCard.color(StatCard.COLOR_WARNING);
+                } else {
+                    completenessCard.color(StatCard.COLOR_DANGER);
+                }
+            }
+
+            // 问题/建议数
+            List<Suggestion> suggestions = insight.getSuggestions();
+            if (suggestions != null) {
+                int issueCount = suggestions.size();
+                issueCountCard.valueAnimated(String.valueOf(issueCount));
+                if (issueCount == 0) {
+                    issueCountCard.color(StatCard.COLOR_SUCCESS);
+                } else if (issueCount <= 3) {
+                    issueCountCard.color(StatCard.COLOR_WARNING);
+                } else {
+                    issueCountCard.color(StatCard.COLOR_DANGER);
+                }
+            }
+        });
+    }
+
     private void populateTreeRoots() {
         List<Path> roots = insightService.resolveConfiguredRoots();
         TreeItem<FsNode> syntheticRoot = new TreeItem<>(new FsNode(null, true, "ROOT"));
@@ -761,6 +861,7 @@ public class DesignerInsightStage extends Stage {
 
     private void updateInsight(XmlDesignerInsight insight) {
         this.currentInsight = insight;
+        updateInsightStats(insight);  // 更新统计卡片
         XmlFileSummary summary = insight.getFileSummary();
         currentPath = summary.getPath();
         fileTitle.setText(summary.getDisplayName());

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-本文档为 Claude Code 提供项目指导信息。
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Git 工作流规范
 
@@ -14,7 +14,7 @@ git add .
 git commit -m "feat: 简短描述修改内容"
 
 # 推送到 GitHub
-git push axmltools stable-nov14:main
+git push axmltools clean-main:main
 ```
 
 ### 提交消息格式
@@ -60,13 +60,19 @@ dbxmlTool 是一个游戏配置数据管理工具，用于 MySQL 数据库与 XM
 mvnd clean compile
 
 # 运行应用（JavaFX 应用）
-mvnd javafx:run
+mvnd exec:java
 
 # 打包（包含依赖的 fat jar）
 mvnd clean package
 
 # 运行测试
 mvnd test
+
+# 运行单个测试类
+mvnd test -Dtest=YourTestClassName
+
+# 运行单个测试方法
+mvnd test -Dtest=YourTestClassName#testMethodName
 ```
 
 主类入口：`red.jiuzhou.ui.Dbxmltool`
@@ -121,34 +127,16 @@ red.jiuzhou
 
 专为Aion游戏设计的机制分类和可视化工具。
 
-**27个游戏机制分类**：
+**核心类**：
+- `AionMechanismCategory.java` - 27个机制分类枚举（定义正则匹配模式、优先级、颜色和图标）
+- `AionMechanismDetector.java` - 机制检测器（包含文件夹级别映射 `folderMappings`）
+- `XmlFieldParser.java` - XML字段解析器
+- `IdNameResolver.java` - ID到NAME转换缓存服务
+- `MechanismRelationshipService.java` - 机制间依赖关系分析
 
-| 分类 | 说明 | 典型文件 |
-|------|------|----------|
-| ABYSS | 深渊系统 | abyss.xml, abyss_rank.xml |
-| SKILL | 技能系统 | skill_base.xml, skill_learns.xml |
-| ITEM | 物品系统 | item_weapons.xml, items.xml |
-| LUNA | Luna货币 | luna_config.xml |
-| NPC | NPC系统 | npcs.xml |
-| NPC_AI | NPC AI系统 | NpcAIPatterns_*.xml |
-| QUEST | 任务系统 | quest.xml |
-| INSTANCE | 副本系统 | instance_cooltime.xml |
-| SUBZONE | 副本区域 | Subzones/* |
-| HOUSING | 房屋系统 | housing_building.xml |
-| ANIMATION_MARKERS | 动画标记 | AnimationMarkers/* |
-| CHARACTER_PRESET | 角色预设 | Custompreset/* |
-| ... | 共27个分类 | |
+**三层级导航**：机制层（27个系统卡片）→ 文件层 → 字段层
 
-**三层级导航**：
-1. **机制层** - 27个游戏系统卡片
-2. **文件层** - 该机制下的所有XML文件
-3. **字段层** - XML字段结构和引用关系
-
-**字段引用检测**：
-- `item_id` → 物品系统
-- `npc_id` → NPC系统
-- `skill_id` → 技能系统
-- `quest_id` → 任务系统
+**字段引用检测**：自动识别 `item_id`、`npc_id`、`skill_id`、`quest_id` 等字段的跨表引用关系
 
 ### 数据转换层 (`red.jiuzhou.dbxml`)
 
@@ -180,9 +168,10 @@ red.jiuzhou
 - `📊 设计洞察` - 打开设计洞察分析
 
 **特性系统 (`ui.features`)**：
-- `FeatureRegistry` - 特性注册中心
-- `FeatureDescriptor` - 特性描述符
-- `FeatureCategory` - 特性分类
+- `FeatureRegistry.defaultRegistry()` - 特性注册中心，注册所有可启动的功能模块
+- `FeatureDescriptor` - 特性描述符（id、名称、描述、分类、启动器）
+- `FeatureCategory` - 特性分类枚举
+- `StageFeatureLauncher` - Stage窗口启动器实现
 
 ### AI服务层 (`red.jiuzhou.ai`)
 
@@ -271,9 +260,15 @@ XML文件 ←→ XmlToDbGenerator/DbToXmlGenerator ←→ MySQL数据库
 2. 在 `AiModelFactory.getClient()` 中添加创建逻辑
 3. 在 `application.yml` 中添加配置项（使用环境变量）
 
+## 关键配置文件
+
+| 文件 | 用途 |
+|------|------|
+| `src/main/resources/application.yml` | 主配置文件（数据库连接、AI服务、路径配置） |
+| `src/main/resources/application.yml.example` | 配置模板（无敏感信息） |
+| `src/main/resources/CONF/` | 表映射配置目录 |
+| `src/main/resources/LeftMenu.json` | 左侧目录树结构配置 |
+
 ## 文档
 
-- `docs/DEVELOPER_GUIDE.md` - 开发者指南
-- `docs/API_REFERENCE.md` - API参考文档
-- `docs/ARCHITECTURE.md` - 架构设计文档
-- `docs/CHANGELOG.md` - 更新日志
+- `docs/MECHANISM_EXPLORER_GUIDE.md` - 机制浏览器使用指南
