@@ -311,17 +311,30 @@ public class DatabaseMappingManager {
     }
 
     /**
-     * 创建表对列表面板
+     * 创建表对列表面板（左侧面板）
      */
     private VBox createTableListPanel() {
         VBox panel = new VBox(10);
         panel.setPadding(new Insets(10));
 
+        // 标题行（包含快捷操作按钮）
+        HBox headerRow = new HBox(10);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
         Label headerLabel = new Label("📋 表映射列表");
         headerLabel.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
 
+        // 快捷操作提示
+        Label tipLabel = new Label("💡 右键点击可进行批量操作");
+        tipLabel.setStyle("-fx-text-fill: #888; -fx-font-size: 11px;");
+
+        headerRow.getChildren().addAll(headerLabel, tipLabel);
+
         pairTableView = new TableView<>();
         pairTableView.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+
+        // 启用多选模式（支持批量操作）
+        pairTableView.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
         // 序号列
         TableColumn<TablePairWrapper, String> indexCol = new TableColumn<>("序号");
@@ -425,18 +438,18 @@ public class DatabaseMappingManager {
         // 添加表映射列表的右键菜单
         setupPairTableContextMenu();
 
-        panel.getChildren().addAll(headerLabel, pairTableView);
+        panel.getChildren().addAll(headerRow, pairTableView);
 
         return panel;
     }
 
     /**
-     * 设置表映射列表的右键菜单
+     * 设置表映射列表的右键菜单（增强版，支持多选批量操作）
      */
     private void setupPairTableContextMenu() {
         ContextMenu contextMenu = new ContextMenu();
 
-        // 查看组
+        // === 查看组 ===
         MenuItem viewDetailItem = new MenuItem("👁️ 查看字段详情");
         viewDetailItem.setOnAction(e -> {
             TablePairWrapper selected = pairTableView.getSelectionModel().getSelectedItem();
@@ -453,7 +466,7 @@ public class DatabaseMappingManager {
             }
         });
 
-        // 单表操作组
+        // === 单表操作组 ===
         MenuItem generateDdlItem = new MenuItem("🔧 生成此表DDL");
         generateDdlItem.setOnAction(e -> {
             TablePairWrapper selected = pairTableView.getSelectionModel().getSelectedItem();
@@ -478,15 +491,59 @@ public class DatabaseMappingManager {
             }
         });
 
-        // 批量操作组
-        Menu batchMenu = new Menu("📦 批量操作（选中项）");
+        // === 批量操作组（选中项）===
+        Menu batchSelectedMenu = new Menu("📦 批量操作（选中项）");
+
         MenuItem batchDdlSelectedItem = new MenuItem("🔧 生成选中表DDL");
         batchDdlSelectedItem.setOnAction(e -> batchGenerateDdlForSelected());
-        MenuItem batchImportSelectedItem = new MenuItem("📥 导入选中表");
+
+        MenuItem batchImportSelectedItem = new MenuItem("📥 导入选中表XML到数据库");
         batchImportSelectedItem.setOnAction(e -> batchImportForSelected());
-        MenuItem batchExportSelectedItem = new MenuItem("📤 导出选中表");
+
+        MenuItem batchExportSelectedItem = new MenuItem("📤 导出选中表到XML");
         batchExportSelectedItem.setOnAction(e -> batchExportForSelected());
-        batchMenu.getItems().addAll(batchDdlSelectedItem, batchImportSelectedItem, batchExportSelectedItem);
+
+        batchSelectedMenu.getItems().addAll(batchDdlSelectedItem, batchImportSelectedItem, batchExportSelectedItem);
+
+        // === 全部操作组 ===
+        Menu batchAllMenu = new Menu("🗂️ 全部操作");
+
+        MenuItem batchDdlAllItem = new MenuItem("🔧 全部生成DDL");
+        batchDdlAllItem.setOnAction(e -> showBatchDdlDialog());
+
+        MenuItem batchImportAllItem = new MenuItem("📥 全部导入XML到数据库");
+        batchImportAllItem.setOnAction(e -> showBatchImportDialog());
+
+        MenuItem batchExportAllItem = new MenuItem("📤 全部导出到XML");
+        batchExportAllItem.setOnAction(e -> showBatchExportDialog());
+
+        MenuItem batchValidateAllItem = new MenuItem("✅ 全部验证映射");
+        batchValidateAllItem.setOnAction(e -> showBatchValidateDialog());
+
+        batchAllMenu.getItems().addAll(batchDdlAllItem, batchImportAllItem, batchExportAllItem,
+            new SeparatorMenuItem(), batchValidateAllItem);
+
+        // === 快速选择组 ===
+        Menu selectMenu = new Menu("🎯 快速选择");
+
+        MenuItem selectAllItem = new MenuItem("全选");
+        selectAllItem.setOnAction(e -> pairTableView.getSelectionModel().selectAll());
+
+        MenuItem selectNoneItem = new MenuItem("取消选择");
+        selectNoneItem.setOnAction(e -> pairTableView.getSelectionModel().clearSelection());
+
+        MenuItem selectMatchedItem = new MenuItem("选择已匹配的表");
+        selectMatchedItem.setOnAction(e -> selectTablesByCondition(t -> t.serverTable != null));
+
+        MenuItem selectUnmatchedItem = new MenuItem("选择未匹配的表");
+        selectUnmatchedItem.setOnAction(e -> selectTablesByCondition(t -> t.serverTable == null));
+
+        MenuItem selectStringsItem = new MenuItem("选择strings表");
+        selectStringsItem.setOnAction(e -> selectTablesByCondition(t ->
+            t.getClientTableName().toLowerCase().contains("string")));
+
+        selectMenu.getItems().addAll(selectAllItem, selectNoneItem, new SeparatorMenuItem(),
+            selectMatchedItem, selectUnmatchedItem, selectStringsItem);
 
         // 复制组
         MenuItem copyTableNameItem = new MenuItem("📋 复制表名");
@@ -522,7 +579,7 @@ public class DatabaseMappingManager {
             }
         });
 
-        // 组装菜单
+        // 组装菜单（增强版）
         contextMenu.getItems().addAll(
             viewDetailItem,
             viewRelationsItem,
@@ -531,7 +588,10 @@ public class DatabaseMappingManager {
             importXmlItem,
             exportXmlItem,
             new SeparatorMenuItem(),
-            batchMenu,
+            batchSelectedMenu,      // 选中项批量操作
+            batchAllMenu,           // 全部操作
+            new SeparatorMenuItem(),
+            selectMenu,             // 快速选择
             new SeparatorMenuItem(),
             copyTableNameItem,
             copyMappingInfoItem,
@@ -542,9 +602,12 @@ public class DatabaseMappingManager {
         // 动态启用/禁用
         contextMenu.setOnShowing(e -> {
             TablePairWrapper selected = pairTableView.getSelectionModel().getSelectedItem();
+            int selectedCount = pairTableView.getSelectionModel().getSelectedItems().size();
             boolean hasSelection = selected != null;
             boolean hasServer = hasSelection && selected.serverTable != null;
+            boolean hasMultipleSelection = selectedCount > 1;
 
+            // 单表操作
             viewDetailItem.setDisable(!hasSelection);
             viewRelationsItem.setDisable(!hasSelection);
             generateDdlItem.setDisable(!hasSelection);
@@ -553,9 +616,28 @@ public class DatabaseMappingManager {
             copyTableNameItem.setDisable(!hasSelection);
             copyMappingInfoItem.setDisable(!hasSelection);
             setManualMappingItem.setDisable(!hasSelection);
+
+            // 批量操作（选中项）- 更新标签显示选中数量
+            batchSelectedMenu.setText(String.format("📦 批量操作（已选%d项）", selectedCount));
+            batchSelectedMenu.setDisable(selectedCount == 0);
         });
 
         pairTableView.setContextMenu(contextMenu);
+    }
+
+    /**
+     * 根据条件选择表
+     */
+    private void selectTablesByCondition(java.util.function.Predicate<TablePairWrapper> condition) {
+        pairTableView.getSelectionModel().clearSelection();
+        ObservableList<TablePairWrapper> items = pairTableView.getItems();
+        for (int i = 0; i < items.size(); i++) {
+            if (condition.test(items.get(i))) {
+                pairTableView.getSelectionModel().select(i);
+            }
+        }
+        int selected = pairTableView.getSelectionModel().getSelectedItems().size();
+        showInfo("选择完成", String.format("已选择 %d 个表", selected));
     }
 
     /**

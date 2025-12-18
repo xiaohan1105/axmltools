@@ -6,45 +6,49 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 
 /**
- * 增强的匹配质量计算器
+ * 增强的匹配质量计算器 v3.0
  *
- * 综合考虑表名相似度和字段匹配度，避免误匹配
+ * 针对游戏数据表的智能匹配算法
  *
- * 算法设计：
- * - 表名相似度权重：30%
- * - 字段匹配度权重：70%
+ * 算法设计（v3.0 重新调整）：
+ * - 表名相似度权重：60%（提高，因为表名是最重要的匹配依据）
+ * - 字段匹配度权重：40%（降低，避免误匹配）
+ *
+ * 匹配优先级：
+ * 1. 精确匹配：client_xxx → xxx（100%置信度）
+ * 2. 语义匹配：处理单复数、版本号、编号后缀（95%置信度）
+ * 3. 模糊匹配：基于Levenshtein距离 + 字段验证
  *
  * 字段匹配度包括：
- * - 共同字段数量占比（40%）
- * - 字段类型匹配度（30%）
- * - 主键匹配（30%）
- *
- * 实例分析：
- * string_monster vs monster
- * - 表名相似度：60%
- * - 字段匹配度：5% (只有id字段)
- * - 综合质量：0.3*60% + 0.7*5% = 21.5% （低质量，不应匹配）
+ * - 核心字段匹配（50%）- id、name等关键字段
+ * - 共同字段数量占比（30%）
+ * - 主键匹配（20%）
  *
  * @author yanxq
  * @date 2025-01-13
- * @version 2.0
+ * @version 3.0
  */
 public class EnhancedMatchQualityCalculator {
 
     private static final Logger log = LoggerFactory.getLogger(EnhancedMatchQualityCalculator.class);
 
-    // 权重配置
-    private static final double WEIGHT_TABLE_NAME = 0.30;    // 表名相似度权重30%
-    private static final double WEIGHT_FIELD_MATCH = 0.70;   // 字段匹配度权重70%
+    // 权重配置（v3.0 调整）
+    private static final double WEIGHT_TABLE_NAME = 0.60;    // 表名相似度权重60%（提高）
+    private static final double WEIGHT_FIELD_MATCH = 0.40;   // 字段匹配度权重40%（降低）
 
-    // 字段匹配子权重
-    private static final double WEIGHT_FIELD_COUNT = 0.40;   // 字段数量匹配40%
-    private static final double WEIGHT_FIELD_TYPE = 0.30;    // 字段类型匹配30%
-    private static final double WEIGHT_PRIMARY_KEY = 0.30;   // 主键匹配30%
+    // 字段匹配子权重（v3.0 调整）
+    private static final double WEIGHT_CORE_FIELDS = 0.50;   // 核心字段匹配50%（新增）
+    private static final double WEIGHT_FIELD_COUNT = 0.30;   // 字段数量匹配30%（降低）
+    private static final double WEIGHT_PRIMARY_KEY = 0.20;   // 主键匹配20%（降低）
 
-    // 匹配阈值
-    private static final double MIN_QUALITY_THRESHOLD = 0.50;  // 最低匹配质量阈值50%
-    private static final double MIN_FIELD_MATCH_RATIO = 0.30;  // 最低字段匹配率30%
+    // 匹配阈值（v3.0 调整）
+    private static final double MIN_QUALITY_THRESHOLD = 0.45;  // 最低匹配质量阈值45%（降低）
+    private static final double MIN_FIELD_MATCH_RATIO = 0.20;  // 最低字段匹配率20%（降低）
+
+    // 核心字段列表（游戏表常见的关键字段）
+    private static final Set<String> CORE_FIELDS = new HashSet<>(Arrays.asList(
+        "id", "name", "desc", "description", "name_id", "type", "level", "grade"
+    ));
 
     /**
      * 匹配质量结果
@@ -61,6 +65,15 @@ public class EnhancedMatchQualityCalculator {
         public int typeMatchedFields;        // 类型匹配的字段数
         public boolean primaryKeyMatched;    // 主键是否匹配
 
+        // 核心字段匹配（v3.0新增）
+        public int coreFieldsClient;         // 客户端核心字段数
+        public int coreFieldsServer;         // 服务端核心字段数
+        public int coreFieldsMatched;        // 匹配的核心字段数
+        public double coreFieldScore;        // 核心字段匹配分数
+
+        // 匹配方式（v3.0新增）
+        public String matchType;             // 精确/语义/模糊
+
         // 匹配质量评级
         public String qualityLevel;          // 优秀/良好/中等/低/极低
 
@@ -68,9 +81,14 @@ public class EnhancedMatchQualityCalculator {
         }
 
         /**
-         * 是否达到匹配标准
+         * 是否达到匹配标准（v3.0 放宽条件）
          */
         public boolean isAcceptable() {
+            // 精确匹配或语义匹配直接通过
+            if ("精确".equals(matchType) || "语义".equals(matchType)) {
+                return true;
+            }
+            // 模糊匹配需要满足阈值
             return overallQuality >= MIN_QUALITY_THRESHOLD &&
                    getFieldMatchRatio() >= MIN_FIELD_MATCH_RATIO;
         }
@@ -91,14 +109,22 @@ public class EnhancedMatchQualityCalculator {
         }
 
         /**
-         * 计算质量等级
+         * 获取核心字段匹配率
+         */
+        public double getCoreFieldMatchRatio() {
+            int maxCoreFields = Math.max(coreFieldsClient, coreFieldsServer);
+            return maxCoreFields > 0 ? (double) coreFieldsMatched / maxCoreFields : 1.0;
+        }
+
+        /**
+         * 计算质量等级（v3.0 调整阈值）
          */
         public void calculateQualityLevel() {
-            if (overallQuality >= 0.90) {
+            if (overallQuality >= 0.85) {
                 qualityLevel = "优秀";
-            } else if (overallQuality >= 0.75) {
+            } else if (overallQuality >= 0.70) {
                 qualityLevel = "良好";
-            } else if (overallQuality >= 0.60) {
+            } else if (overallQuality >= 0.55) {
                 qualityLevel = "中等";
             } else if (overallQuality >= 0.40) {
                 qualityLevel = "低";
@@ -111,22 +137,23 @@ public class EnhancedMatchQualityCalculator {
         public String toString() {
             return String.format(
                 "MatchQuality{综合:%.1f%%, 表名:%.1f%%, 字段:%.1f%%, " +
-                "共同字段:%d/%d, 类型匹配:%d/%d, 主键:%s, 等级:%s}",
+                "共同:%d/%d, 核心:%d/%d, 主键:%s, 类型:%s, 等级:%s}",
                 overallQuality * 100,
                 tableNameSimilarity * 100,
                 fieldMatchScore * 100,
                 commonFields,
                 Math.max(totalFieldsClient, totalFieldsServer),
-                typeMatchedFields,
-                commonFields,
+                coreFieldsMatched,
+                Math.max(coreFieldsClient, coreFieldsServer),
                 primaryKeyMatched ? "✓" : "✗",
+                matchType != null ? matchType : "模糊",
                 qualityLevel
             );
         }
     }
 
     /**
-     * 计算综合匹配质量
+     * 计算综合匹配质量（v3.0 重新设计）
      *
      * @param clientTable 客户端表信息
      * @param serverTable 服务端表信息
@@ -140,10 +167,20 @@ public class EnhancedMatchQualityCalculator {
 
         MatchQuality quality = new MatchQuality();
 
-        // 应用表名权重加成（如strings表的80%权重）
+        // 1. 判断匹配类型（精确/语义/模糊）
+        String matchType = determineMatchType(clientTable.getTableName(), serverTable.getTableName());
+        quality.matchType = matchType;
+
+        // 2. 根据匹配类型调整表名相似度
+        if ("精确".equals(matchType)) {
+            tableNameSimilarity = 1.0;
+        } else if ("语义".equals(matchType)) {
+            tableNameSimilarity = Math.max(tableNameSimilarity, 0.95);
+        }
+
+        // 3. 应用表名权重加成（如strings表的80%权重）
         double weightBonus = MappingConfigManager.getTableWeightBonus(clientTable.getTableName());
         if (weightBonus > 0) {
-            // 将权重加成应用到表名相似度
             tableNameSimilarity = Math.min(1.0, tableNameSimilarity + weightBonus * (1.0 - tableNameSimilarity));
             log.debug("表 {} 应用权重加成 {:.0f}%, 调整后相似度: {:.1f}%",
                 clientTable.getTableName(), weightBonus * 100, tableNameSimilarity * 100);
@@ -151,16 +188,16 @@ public class EnhancedMatchQualityCalculator {
 
         quality.tableNameSimilarity = tableNameSimilarity;
 
-        // 获取字段对比结果
+        // 4. 获取字段对比结果
         DatabaseTableScanner.FieldCompareResult fieldCompare =
                 DatabaseTableScanner.compareFields(clientTable, serverTable);
 
-        // 统计字段信息
+        // 5. 统计字段信息
         quality.totalFieldsClient = clientTable.getColumns().size();
         quality.totalFieldsServer = serverTable.getColumns().size();
         quality.commonFields = fieldCompare.getCommonCount();
 
-        // 统计类型匹配的字段
+        // 6. 统计类型匹配的字段
         quality.typeMatchedFields = 0;
         for (DatabaseTableScanner.FieldPair pair : fieldCompare.commonFields) {
             if (pair.isTypeMatched()) {
@@ -168,17 +205,20 @@ public class EnhancedMatchQualityCalculator {
             }
         }
 
-        // 检查主键匹配
+        // 7. 统计核心字段匹配（v3.0 新增）
+        calculateCoreFieldMatch(quality, clientTable, serverTable, fieldCompare);
+
+        // 8. 检查主键匹配
         quality.primaryKeyMatched = checkPrimaryKeyMatch(clientTable, serverTable);
 
-        // 计算字段匹配分数
+        // 9. 计算字段匹配分数（v3.0 改进）
         quality.fieldMatchScore = calculateFieldMatchScore(quality);
 
-        // 计算综合质量
+        // 10. 计算综合质量
         quality.overallQuality = WEIGHT_TABLE_NAME * quality.tableNameSimilarity +
                                 WEIGHT_FIELD_MATCH * quality.fieldMatchScore;
 
-        // 计算质量等级
+        // 11. 计算质量等级
         quality.calculateQualityLevel();
 
         log.debug("匹配质量计算: {} → {} | {}",
@@ -190,21 +230,121 @@ public class EnhancedMatchQualityCalculator {
     }
 
     /**
-     * 计算字段匹配分数
+     * 判断匹配类型（v3.0 新增）
+     *
+     * @return 精确/语义/模糊
+     */
+    private static String determineMatchType(String clientTable, String serverTable) {
+        // 标准化客户端表名
+        String normalizedClient = clientTable.toLowerCase();
+        if (normalizedClient.startsWith("client_")) {
+            normalizedClient = normalizedClient.substring("client_".length());
+        }
+
+        String normalizedServer = serverTable.toLowerCase();
+
+        // 1. 精确匹配：去掉client_前缀后完全相同
+        if (normalizedClient.equals(normalizedServer)) {
+            return "精确";
+        }
+
+        // 2. 语义匹配：处理常见变体
+        String semanticClient = normalizeForSemantic(normalizedClient);
+        String semanticServer = normalizeForSemantic(normalizedServer);
+
+        if (semanticClient.equals(semanticServer)) {
+            return "语义";
+        }
+
+        // 3. 模糊匹配
+        return "模糊";
+    }
+
+    /**
+     * 语义标准化（v3.0 新增）
+     * 处理单复数、版本号、编号后缀等
+     */
+    private static String normalizeForSemantic(String tableName) {
+        String normalized = tableName;
+
+        // 去掉数字后缀: _1, _2, _v2, _v3
+        normalized = normalized.replaceAll("_\\d+$", "");
+        normalized = normalized.replaceAll("_v\\d+$", "");
+
+        // 去掉常见后缀
+        normalized = normalized.replaceAll("_(data|info|table|tab|list)$", "");
+
+        // 单复数统一
+        if (normalized.endsWith("ies") && normalized.length() > 3) {
+            normalized = normalized.substring(0, normalized.length() - 3) + "y";
+        } else if (normalized.endsWith("ses") && normalized.length() > 3) {
+            normalized = normalized.substring(0, normalized.length() - 2);
+        } else if (normalized.endsWith("s") && !normalized.endsWith("ss") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+
+        return normalized;
+    }
+
+    /**
+     * 计算核心字段匹配（v3.0 新增）
+     */
+    private static void calculateCoreFieldMatch(
+            MatchQuality quality,
+            DatabaseTableScanner.TableInfo clientTable,
+            DatabaseTableScanner.TableInfo serverTable,
+            DatabaseTableScanner.FieldCompareResult fieldCompare) {
+
+        // 统计客户端核心字段
+        Set<String> clientCoreFields = new HashSet<>();
+        for (DatabaseTableScanner.ColumnInfo col : clientTable.getColumns()) {
+            String colName = col.getColumnName().toLowerCase();
+            if (CORE_FIELDS.contains(colName)) {
+                clientCoreFields.add(colName);
+            }
+        }
+        quality.coreFieldsClient = clientCoreFields.size();
+
+        // 统计服务端核心字段
+        Set<String> serverCoreFields = new HashSet<>();
+        for (DatabaseTableScanner.ColumnInfo col : serverTable.getColumns()) {
+            String colName = col.getColumnName().toLowerCase();
+            if (CORE_FIELDS.contains(colName)) {
+                serverCoreFields.add(colName);
+            }
+        }
+        quality.coreFieldsServer = serverCoreFields.size();
+
+        // 统计匹配的核心字段
+        int matched = 0;
+        for (DatabaseTableScanner.FieldPair pair : fieldCompare.commonFields) {
+            String fieldName = pair.clientField.getColumnName().toLowerCase();
+            if (CORE_FIELDS.contains(fieldName)) {
+                matched++;
+            }
+        }
+        quality.coreFieldsMatched = matched;
+
+        // 计算核心字段分数
+        quality.coreFieldScore = quality.getCoreFieldMatchRatio();
+    }
+
+    /**
+     * 计算字段匹配分数（v3.0 改进）
      */
     private static double calculateFieldMatchScore(MatchQuality quality) {
-        // 1. 字段数量匹配分数
-        double fieldCountScore = quality.getFieldMatchRatio();
+        // 1. 核心字段匹配分数（最重要）
+        double coreFieldScore = quality.coreFieldScore;
 
-        // 2. 字段类型匹配分数
-        double fieldTypeScore = quality.getTypeMatchRatio();
+        // 2. 字段数量匹配分数
+        double fieldCountScore = quality.getFieldMatchRatio();
 
         // 3. 主键匹配分数
         double primaryKeyScore = quality.primaryKeyMatched ? 1.0 : 0.0;
 
-        // 综合计算字段匹配分数
-        double fieldMatchScore = WEIGHT_FIELD_COUNT * fieldCountScore +
-                                WEIGHT_FIELD_TYPE * fieldTypeScore +
+        // 综合计算字段匹配分数（v3.0 调整权重）
+        double fieldMatchScore = WEIGHT_CORE_FIELDS * coreFieldScore +
+                                WEIGHT_FIELD_COUNT * fieldCountScore +
                                 WEIGHT_PRIMARY_KEY * primaryKeyScore;
 
         return fieldMatchScore;

@@ -196,14 +196,14 @@ public class SmartTableMatcher {
     }
 
     /**
-     * 模糊匹配（使用增强的质量计算器）
+     * 模糊匹配（使用增强的质量计算器 v3.0）
      *
      * 综合考虑：
-     * - 表名相似度 (30%)
-     * - 字段匹配度 (70%)
-     *   - 字段数量匹配 (40%)
-     *   - 字段类型匹配 (30%)
-     *   - 主键匹配 (30%)
+     * - 表名相似度 (60%)
+     * - 字段匹配度 (40%)
+     *   - 核心字段匹配 (50%)
+     *   - 字段数量匹配 (30%)
+     *   - 主键匹配 (20%)
      */
     private static MatchResult fuzzyMatch(DatabaseTableScanner.TableInfo clientTable,
                                          List<DatabaseTableScanner.TableInfo> allServerTables) {
@@ -221,7 +221,7 @@ public class SmartTableMatcher {
             // 1. 计算表名相似度（基于标准化的表名）
             double tableNameSimilarity = calculateSimilarity(normalizedClient, normalizedServer);
 
-            // 2. 计算综合质量（表名 + 字段）
+            // 2. 计算综合质量（表名 + 字段，v3.0使用增强算法）
             EnhancedMatchQualityCalculator.MatchQuality quality =
                 EnhancedMatchQualityCalculator.calculateQuality(
                     clientTable, serverTable, tableNameSimilarity);
@@ -237,23 +237,33 @@ public class SmartTableMatcher {
             }
         }
 
-        // 使用增强的阈值判断
+        // 使用增强的阈值判断（v3.0 更宽松的条件）
         if (bestMatch != null && bestQuality != null && bestQuality.isAcceptable()) {
-            log.info("模糊匹配成功: {} → {} | {}",
-                    clientTableName, bestMatch.getTableName(), bestQuality.toString());
+            // 根据匹配类型生成描述
+            String matchMethod;
+            if ("精确".equals(bestQuality.matchType)) {
+                matchMethod = "精确匹配";
+            } else if ("语义".equals(bestQuality.matchType)) {
+                matchMethod = String.format("语义匹配 (%.0f%%)", bestOverallQuality * 100);
+            } else {
+                matchMethod = String.format("模糊匹配 (%.0f%%)", bestOverallQuality * 100);
+            }
+
+            log.info("匹配成功: {} → {} | {} | {}",
+                    clientTableName, bestMatch.getTableName(), matchMethod, bestQuality.toString());
 
             return new MatchResult(
                 clientTableName,
                 bestMatch.getTableName(),
                 bestOverallQuality,
-                String.format("模糊匹配 (质量:%.0f%%)", bestOverallQuality * 100),
+                matchMethod,
                 bestQuality
             );
         }
 
         // 没有找到合适的匹配
         if (bestMatch != null) {
-            log.warn("未找到满足质量要求的匹配: {} (最佳: {} 质量:{:.1f}%)",
+            log.warn("未找到满足质量要求的匹配: {} (最佳: {} 质量:%.1f%%)",
                     clientTableName, bestMatch.getTableName(), bestOverallQuality * 100);
         } else {
             log.warn("未找到匹配: {}", clientTableName);
