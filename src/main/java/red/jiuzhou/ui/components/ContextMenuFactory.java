@@ -689,14 +689,34 @@ public class ContextMenuFactory {
     }
 
     /**
-     * 在资源管理器中打开文件所在目录
+     * 在资源管理器中打开文件所在目录并选中文件
      */
     public static void openInExplorer(String path) {
         try {
             File file = new File(path);
-            File folder = file.isDirectory() ? file : file.getParentFile();
-            if (folder != null && folder.exists()) {
-                Desktop.getDesktop().open(folder);
+            if (!file.exists()) {
+                log.warn("文件不存在: {}", path);
+                showError("打开失败", "文件不存在: " + path);
+                return;
+            }
+
+            String os = System.getProperty("os.name").toLowerCase();
+            if (os.contains("win")) {
+                // Windows: 使用 explorer /select 选中文件
+                if (file.isDirectory()) {
+                    Runtime.getRuntime().exec(new String[]{"explorer.exe", file.getAbsolutePath()});
+                } else {
+                    Runtime.getRuntime().exec(new String[]{"explorer.exe", "/select,", file.getAbsolutePath()});
+                }
+            } else if (os.contains("mac")) {
+                // macOS: 使用 open -R 选中文件
+                Runtime.getRuntime().exec(new String[]{"open", "-R", file.getAbsolutePath()});
+            } else {
+                // Linux: 尝试使用 xdg-open 打开父目录
+                File folder = file.isDirectory() ? file : file.getParentFile();
+                if (folder != null) {
+                    Runtime.getRuntime().exec(new String[]{"xdg-open", folder.getAbsolutePath()});
+                }
             }
         } catch (Exception e) {
             log.error("打开资源管理器失败: {}", path, e);

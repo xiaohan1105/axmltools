@@ -181,6 +181,22 @@ public class XMLToMySQLGenerator {
 
         List<Element> fields = element.elements();
         List<Attribute> attributes = element.attributes();
+
+        // 计算总字段数（包括属性转列）
+        int totalFieldCount = fields.size() + attributes.size();
+        for (Element field : fields) {
+            if (field.elements().isEmpty() && !field.attributes().isEmpty()) {
+                totalFieldCount += field.attributes().size();
+            }
+        }
+
+        // 根据字段数量选择行格式和字段类型策略
+        // - 超过100个字段: 使用COMPRESSED格式 + MEDIUMTEXT
+        // - 超过50个字段: 使用DYNAMIC格式 + TEXT
+        // - 其他: 使用DYNAMIC格式 + VARCHAR
+        String rowFormat = totalFieldCount > 100 ? "COMPRESSED" : "DYNAMIC";
+        int fieldTypeLevel = totalFieldCount > 100 ? 2 : (totalFieldCount > 50 ? 1 : 0);
+
         StringBuilder sql = new StringBuilder("DROP TABLE IF EXISTS " + dbName + "." + tableName + ";\n" +
                 "CREATE TABLE "  + dbName + "." + tableName + " (\n");
         String tabFirstField = "`" + context.getFirstField() + "`";
@@ -196,9 +212,8 @@ public class XMLToMySQLGenerator {
             sql.append("    `").append(context.getFirstField()).append("` VARCHAR(255) PRIMARY KEY COMMENT '").append(context.getFirstField()).append("',\n");
             sql.append("    `").append(ORDER_COLUMN).append("` INT NOT NULL DEFAULT 0 COMMENT '顺序索引',\n");
         }
-        // **字段数量超过 50 时，默认使用 TEXT 避免行大小超限**
-        // MySQL InnoDB 单行最大约8KB,大量VARCHAR字段会导致 "Row size too large" 错误
-        boolean useTextType = fields.size() > 50;
+        // fieldTypeLevel: 0=VARCHAR, 1=TEXT, 2=MEDIUMTEXT
+        // MySQL InnoDB 单行最大约8KB, 大量VARCHAR字段会导致 "Row size too large" 错误
         // 解析字段
         int i = 0;
         if(WORLD_SPECIAL_TAB_NAMES.contains(tableName)){
@@ -215,7 +230,7 @@ public class XMLToMySQLGenerator {
             if(!isChildTable && i == 1){
                 continue;
             }
-            String fieldType = getColumnType(field.getName(), useTextType, context);
+            String fieldType = getColumnType(field.getName(), fieldTypeLevel, context);
             String fieldName = field.getName();
             sql.append("    ").append("`" + fieldName + "`").append(" ").append(fieldType)
                     .append(" COMMENT '").append( AliyunTranslateUtil.translate(fieldName)).append("',\n");
@@ -234,30 +249,54 @@ public class XMLToMySQLGenerator {
 
         // 去掉最后的逗号
         sql.setLength(sql.length() - 2);
-        sql.append("\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=DYNAMIC COMMENT = '"+AliyunTranslateUtil.translate(tableName)+"';");
+        sql.append("\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=").append(rowFormat)
+           .append(" COMMENT = '").append(AliyunTranslateUtil.translate(tableName)).append("';");
 
         return sql.toString();
     }
 
-    // 根据字段名和表字段数量动态调整字段类型
-    private static String getColumnType(String fieldName, boolean useTextType, GenerationContext context) {
+    /**
+     * 根据字段名和表字段数量动态调整字段类型
+     *
+     * @param fieldName      字段名
+     * @param fieldTypeLevel 字段类型级别: 0=VARCHAR, 1=TEXT, 2=MEDIUMTEXT
+     * @param context        生成上下文
+     * @return SQL字段类型
+     */
+    private static String getColumnType(String fieldName, int fieldTypeLevel, GenerationContext context) {
         if (context.getFieldLenJson() == null) {
-            // 字段数量过多时使用TEXT避免行大小超限
-            return useTextType ? "TEXT" : "VARCHAR(64)";
+            // 字段数量过多时使用TEXT/MEDIUMTEXT避免行大小超限
+            return getTextTypeByLevel(fieldTypeLevel, 64);
         }
         int len = context.getFieldLenJson().containsKey(fieldName)
                 ? context.getFieldLenJson().getIntValue(fieldName) : 0;
-        if(len == 0){
-            return useTextType ? "TEXT" : "VARCHAR(64)";
+        if (len == 0) {
+            return getTextTypeByLevel(fieldTypeLevel, 64);
         }
 
-        // 策略: VARCHAR长度超过255或字段数量过多时使用TEXT类型
-        // 这样可以避免MySQL的"Row size too large"错误
-        if (useTextType || len > 255) {
+        // 策略: 根据字段级别和长度选择类型
+        // - fieldTypeLevel=2 (超过100字段): 统一使用MEDIUMTEXT
+        // - fieldTypeLevel=1 (超过50字段): 使用TEXT
+        // - fieldTypeLevel=0: 使用VARCHAR，超过255时使用TEXT
+        if (fieldTypeLevel >= 2) {
+            return "MEDIUMTEXT";
+        } else if (fieldTypeLevel == 1 || len > 255) {
             return "TEXT";
         }
 
         return "VARCHAR(" + len + ")";
+    }
+
+    /**
+     * 根据级别获取文本类型
+     */
+    private static String getTextTypeByLevel(int level, int defaultVarcharLen) {
+        if (level >= 2) {
+            return "MEDIUMTEXT";
+        } else if (level == 1) {
+            return "TEXT";
+        }
+        return "VARCHAR(" + defaultVarcharLen + ")";
     }
 
     public static String shortenString(String input, int maxLength) {
