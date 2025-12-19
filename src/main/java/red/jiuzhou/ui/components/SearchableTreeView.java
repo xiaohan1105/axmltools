@@ -13,6 +13,9 @@ import javafx.scene.layout.VBox;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import red.jiuzhou.analysis.aion.AionMechanismCategory;
+import red.jiuzhou.analysis.aion.MechanismFileMapper;
+
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -72,8 +75,19 @@ public class SearchableTreeView<T> extends VBox {
     private Function<TreeItem<T>, String> pathResolver;
     private Runnable onRefresh;
 
+    // 机制过滤
+    private MechanismTagBar mechanismTagBar;
+    private AionMechanismCategory currentMechanismFilter = null;
+    private boolean mechanismFilterEnabled = false;
+
     public SearchableTreeView() {
         setSpacing(0);
+
+        // 创建机制标签栏（默认隐藏）
+        mechanismTagBar = new MechanismTagBar();
+        mechanismTagBar.setVisible(false);
+        mechanismTagBar.setManaged(false);
+        mechanismTagBar.setOnMechanismSelected(this::onMechanismFilterChanged);
 
         // 创建搜索栏
         HBox searchBar = createSearchBar();
@@ -87,7 +101,7 @@ public class SearchableTreeView<T> extends VBox {
         HBox statusBar = createStatusBar();
 
         // 布局
-        getChildren().addAll(searchBar, treeView, statusBar);
+        getChildren().addAll(mechanismTagBar, searchBar, treeView, statusBar);
 
         // 初始化默认搜索匹配器
         searchMatcher = (item, keyword) -> {
@@ -97,6 +111,111 @@ public class SearchableTreeView<T> extends VBox {
 
         setupTreeViewListeners();
         setupContextMenu();
+    }
+
+    /**
+     * 机制过滤变更处理
+     */
+    private void onMechanismFilterChanged(AionMechanismCategory category) {
+        this.currentMechanismFilter = category;
+        performFilteredSearch();
+    }
+
+    /**
+     * 执行带机制过滤的搜索
+     */
+    private void performFilteredSearch() {
+        if (originalRoot == null) return;
+
+        matchedItems.clear();
+        currentMatchIndex = -1;
+        matchCount = 0;
+
+        // 如果没有任何过滤条件，恢复原始树
+        if ((currentSearchText == null || currentSearchText.trim().isEmpty())
+            && currentMechanismFilter == null) {
+            treeView.setRoot(originalRoot);
+            updateStats();
+            return;
+        }
+
+        // 过滤树
+        String keyword = (currentSearchText != null) ? currentSearchText.toLowerCase() : "";
+        TreeItem<T> filteredRoot = filterTreeWithMechanism(originalRoot, keyword, currentMechanismFilter);
+
+        if (filteredRoot != null) {
+            treeView.setRoot(filteredRoot);
+            expandMatchedPaths(filteredRoot);
+        } else {
+            // 没有匹配项时显示空根
+            TreeItem<T> emptyRoot = new TreeItem<>(originalRoot.getValue());
+            treeView.setRoot(emptyRoot);
+        }
+
+        updateStats();
+
+        // 自动选中第一个匹配项
+        if (!matchedItems.isEmpty()) {
+            currentMatchIndex = 0;
+            selectAndScrollTo(matchedItems.get(0));
+        }
+    }
+
+    /**
+     * 带机制过滤的树过滤
+     */
+    private TreeItem<T> filterTreeWithMechanism(TreeItem<T> item, String keyword, AionMechanismCategory mechanism) {
+        if (item == null) return null;
+
+        boolean keywordMatches = keyword.isEmpty() || searchMatcher.test(item.getValue(), keyword);
+        boolean mechanismMatches = checkMechanismMatch(item, mechanism);
+
+        // 检查子节点
+        List<TreeItem<T>> filteredChildren = new ArrayList<>();
+        for (TreeItem<T> child : item.getChildren()) {
+            TreeItem<T> filteredChild = filterTreeWithMechanism(child, keyword, mechanism);
+            if (filteredChild != null) {
+                filteredChildren.add(filteredChild);
+            }
+        }
+
+        // 叶子节点：必须同时满足关键词和机制条件
+        if (item.isLeaf()) {
+            if (keywordMatches && mechanismMatches) {
+                TreeItem<T> copy = new TreeItem<>(item.getValue());
+                copy.setGraphic(item.getGraphic());
+                matchedItems.add(copy);
+                matchCount++;
+                return copy;
+            }
+            return null;
+        }
+
+        // 非叶子节点：如果有匹配的子节点，则保留
+        if (!filteredChildren.isEmpty()) {
+            TreeItem<T> copy = new TreeItem<>(item.getValue());
+            copy.setGraphic(item.getGraphic());
+            copy.setExpanded(true);
+            copy.getChildren().addAll(filteredChildren);
+            return copy;
+        }
+
+        return null;
+    }
+
+    /**
+     * 检查节点是否匹配机制过滤
+     */
+    private boolean checkMechanismMatch(TreeItem<T> item, AionMechanismCategory mechanism) {
+        if (mechanism == null) return true; // 无机制过滤
+        if (pathResolver == null) return true; // 无法解析路径
+
+        String path = pathResolver.apply(item);
+        if (path == null || path.isEmpty()) return true;
+
+        // 使用静态方法检测文件机制
+        AionMechanismCategory fileMechanism = MechanismFileMapper.detectMechanismStatic(path);
+        return fileMechanism == mechanism;
     }
 
     /**
@@ -368,6 +487,16 @@ public class SearchableTreeView<T> extends VBox {
     private void performSearch() {
         if (originalRoot == null) return;
 
+        // 如果启用了机制过滤，使用组合过滤
+        if (mechanismFilterEnabled) {
+            performFilteredSearch();
+            // 添加到搜索历史
+            if (currentSearchText != null && !currentSearchText.trim().isEmpty()) {
+                addToHistory(currentSearchText);
+            }
+            return;
+        }
+
         matchedItems.clear();
         currentMatchIndex = -1;
 
@@ -513,19 +642,41 @@ public class SearchableTreeView<T> extends VBox {
      * 更新统计信息
      */
     private void updateStats() {
+        StringBuilder sb = new StringBuilder();
+        boolean hasFilter = false;
+
+        // 机制过滤信息
+        if (mechanismFilterEnabled && currentMechanismFilter != null) {
+            sb.append("[").append(currentMechanismFilter.getDisplayName()).append("] ");
+            hasFilter = true;
+        }
+
         if (currentSearchText == null || currentSearchText.isEmpty()) {
-            int totalNodes = countNodes(originalRoot);
-            statsLabel.setText("共 " + totalNodes + " 个节点");
+            if (hasFilter) {
+                if (matchedItems.isEmpty()) {
+                    sb.append("无匹配文件");
+                    statsLabel.setStyle("-fx-text-fill: #dc3545; -fx-font-size: 11px;");
+                } else {
+                    sb.append(matchedItems.size()).append(" 个文件");
+                    statsLabel.setStyle("-fx-text-fill: #17a2b8; -fx-font-size: 11px;");
+                }
+            } else {
+                int totalNodes = countNodes(originalRoot);
+                sb.append("共 ").append(totalNodes).append(" 个节点");
+                statsLabel.setStyle("-fx-text-fill: #6c757d; -fx-font-size: 11px;");
+            }
         } else {
             if (matchedItems.isEmpty()) {
-                statsLabel.setText("未找到匹配项");
+                sb.append("未找到匹配项");
                 statsLabel.setStyle("-fx-text-fill: #dc3545; -fx-font-size: 11px;");
             } else {
-                statsLabel.setText(String.format("找到 %d 个匹配 (%d/%d)",
+                sb.append(String.format("找到 %d 个匹配 (%d/%d)",
                         matchedItems.size(), currentMatchIndex + 1, matchedItems.size()));
                 statsLabel.setStyle("-fx-text-fill: #28a745; -fx-font-size: 11px;");
             }
         }
+
+        statsLabel.setText(sb.toString());
     }
 
     /**
@@ -687,5 +838,92 @@ public class SearchableTreeView<T> extends VBox {
      */
     public void dispose() {
         searchExecutor.shutdownNow();
+    }
+
+    // ==================== 机制过滤相关方法 ====================
+
+    /**
+     * 启用机制过滤功能
+     */
+    public void enableMechanismFilter(boolean enable) {
+        this.mechanismFilterEnabled = enable;
+        mechanismTagBar.setVisible(enable);
+        mechanismTagBar.setManaged(enable);
+
+        if (enable) {
+            // 刷新标签统计
+            mechanismTagBar.refreshTags();
+        } else {
+            // 清除机制过滤
+            currentMechanismFilter = null;
+            if (originalRoot != null) {
+                treeView.setRoot(originalRoot);
+            }
+        }
+    }
+
+    /**
+     * 获取机制过滤是否启用
+     */
+    public boolean isMechanismFilterEnabled() {
+        return mechanismFilterEnabled;
+    }
+
+    /**
+     * 获取机制标签栏
+     */
+    public MechanismTagBar getMechanismTagBar() {
+        return mechanismTagBar;
+    }
+
+    /**
+     * 设置当前机制过滤
+     */
+    public void setMechanismFilter(AionMechanismCategory category) {
+        this.currentMechanismFilter = category;
+        if (mechanismTagBar != null) {
+            mechanismTagBar.selectMechanism(category);
+        }
+        performFilteredSearch();
+    }
+
+    /**
+     * 获取当前机制过滤
+     */
+    public AionMechanismCategory getMechanismFilter() {
+        return currentMechanismFilter;
+    }
+
+    /**
+     * 清除机制过滤
+     */
+    public void clearMechanismFilter() {
+        currentMechanismFilter = null;
+        if (mechanismTagBar != null) {
+            mechanismTagBar.clearSelection();
+        }
+        performFilteredSearch();
+    }
+
+    /**
+     * 从文件路径反向定位到机制
+     */
+    public void highlightFileMechanism(String filePath) {
+        if (filePath == null || !mechanismFilterEnabled) return;
+
+        AionMechanismCategory category = MechanismFileMapper.detectMechanismStatic(filePath);
+        if (mechanismTagBar != null) {
+            mechanismTagBar.highlightMechanism(category);
+        }
+    }
+
+    /**
+     * 扫描目录建立机制映射
+     */
+    public void scanDirectoryForMechanisms(String rootPath) {
+        MechanismFileMapper.getInstance().scanDirectory(rootPath);
+        if (mechanismTagBar != null && mechanismFilterEnabled) {
+            mechanismTagBar.refreshTags();
+        }
     }
 }

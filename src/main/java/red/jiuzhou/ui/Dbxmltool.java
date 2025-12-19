@@ -178,6 +178,15 @@ public class Dbxmltool extends Application {
         SearchableTreeView<String> searchableMenu = example.createSearchableLeftMenu(leftMenuJson, tabPane);
         TreeView<String> leftMenu = searchableMenu.getTreeView();  // 获取内部TreeView用于兼容
 
+        // ==================== 启用机制过滤功能 ====================
+        // 扫描XML目录建立机制映射
+        String xmlPath = YamlUtils.getProperty("aion.xmlPath");
+        if (xmlPath != null && !xmlPath.isEmpty()) {
+            searchableMenu.scanDirectoryForMechanisms(xmlPath);
+        }
+        // 启用机制过滤标签栏
+        searchableMenu.enableMechanismFilter(true);
+
         // ==================== 创建快捷操作按钮组 ====================
         // 提供常用的文件和目录操作功能
         HBox quickActions = new HBox(8);
