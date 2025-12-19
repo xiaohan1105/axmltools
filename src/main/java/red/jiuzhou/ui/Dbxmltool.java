@@ -605,18 +605,18 @@ public class Dbxmltool extends Application {
         // 刷怪点工具按钮 - 坐标生成、概率模拟
         Button gameToolsBtn = new Button("🎯 刷怪工具");
         gameToolsBtn.setTooltip(new Tooltip(
-            "刷怪点规划与概率模拟\n\n" +
+            "地图刷怪浏览与规划\n\n" +
+            "🗺️ 地图浏览器:\n" +
+            "• 浏览World目录下所有地图\n" +
+            "• 查看刷怪区域(territory)配置\n" +
+            "• 搜索NPC名或区域名\n" +
+            "• 右键复制坐标到生成器\n\n" +
             "📍 刷怪点生成:\n" +
-            "• 巡逻路线规划（路径点均匀分布）\n" +
-            "• 圆形刷怪区域（BOSS周围刷怪）\n" +
-            "• 环形刷怪区域（安全区外围刷怪）\n" +
+            "• 巡逻路线、圆形/环形刷怪区域\n" +
             "• 结果可直接复制为XML配置\n\n" +
             "🎲 概率模拟器:\n" +
             "• 怪物刷新权重验证\n" +
-            "• 掉落概率测试（独立/保底）\n" +
-            "• 刷新比例可视化统计\n\n" +
-            "💡 快捷操作:\n" +
-            "→ 选中刷怪配置后右键可直接分析"
+            "• 掉落概率测试"
         ));
         gameToolsBtn.setStyle("-fx-background-color: #FFF3E0;");
 

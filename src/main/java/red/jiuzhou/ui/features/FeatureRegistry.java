@@ -67,7 +67,7 @@ public final class FeatureRegistry {
         features.add(new FeatureDescriptor(
                 "game-tools",
                 "刷怪工具",
-                "刷怪点规划与概率模拟：巡逻路线生成、圆形/环形刷怪区域、怪物刷新权重验证、掉落概率测试",
+                "地图刷怪浏览与规划：浏览World目录刷怪配置、生成刷怪点坐标、概率模拟验证",
                 FeatureCategory.GAME_TOOLS,
                 new StageFeatureLauncher(GameToolsStage::new)
         ));
