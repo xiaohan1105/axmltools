@@ -1,5 +1,6 @@
 package red.jiuzhou.ui.components;
 
+import javafx.animation.FadeTransition;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -10,6 +11,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -114,11 +116,74 @@ public class SearchableTreeView<T> extends VBox {
     }
 
     /**
-     * 机制过滤变更处理
+     * 机制过滤变更处理（焦点模式）
      */
     private void onMechanismFilterChanged(AionMechanismCategory category) {
         this.currentMechanismFilter = category;
+
+        // 刷新单元格以更新焦点视觉效果
+        refreshTreeCells();
+
+        // 执行过滤搜索
         performFilteredSearch();
+
+        // 如果有焦点机制，自动展开包含匹配文件的文件夹
+        if (category != null && originalRoot != null) {
+            autoExpandMatchingFolders(originalRoot, category);
+        }
+
+        log.debug("机制焦点切换: {}", category != null ? category.getDisplayName() : "全部");
+    }
+
+    /**
+     * 自动展开包含匹配文件的文件夹
+     */
+    private void autoExpandMatchingFolders(TreeItem<T> item, AionMechanismCategory mechanism) {
+        if (item == null || mechanism == null) return;
+
+        boolean hasMatchingDescendant = hasMatchingDescendant(item, mechanism);
+
+        if (hasMatchingDescendant) {
+            // 展开包含匹配文件的文件夹
+            item.setExpanded(true);
+
+            // 递归处理子节点
+            for (TreeItem<T> child : item.getChildren()) {
+                if (!child.isLeaf()) {
+                    autoExpandMatchingFolders(child, mechanism);
+                }
+            }
+        } else {
+            // 折叠不包含匹配文件的文件夹
+            item.setExpanded(false);
+        }
+    }
+
+    /**
+     * 检查节点是否有匹配指定机制的后代
+     */
+    private boolean hasMatchingDescendant(TreeItem<T> item, AionMechanismCategory mechanism) {
+        if (item == null) return false;
+
+        if (item.isLeaf()) {
+            // 叶子节点：检查是否匹配
+            if (pathResolver != null) {
+                String path = pathResolver.apply(item);
+                if (path != null && path.toLowerCase().endsWith(".xml")) {
+                    AionMechanismCategory fileMech = MechanismFileMapper.detectMechanismStatic(path);
+                    return fileMech == mechanism;
+                }
+            }
+            return false;
+        }
+
+        // 非叶子节点：递归检查子节点
+        for (TreeItem<T> child : item.getChildren()) {
+            if (hasMatchingDescendant(child, mechanism)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -865,17 +930,35 @@ public class SearchableTreeView<T> extends VBox {
     }
 
     /**
-     * 设置机制感知的单元格工厂
+     * 设置机制感知的单元格工厂（使用焦点感知版本）
      */
     private void setupMechanismAwareCellFactory() {
         if (pathResolver == null) return;
 
-        treeView.setCellFactory(MechanismAwareTreeCell.createFactory(
+        // 使用 FocusAwareTreeCell，支持焦点模式的视觉效果
+        treeView.setCellFactory(FocusAwareTreeCell.createFactory(
             pathResolver,
             // 过滤回调
             mechanism -> setMechanismFilter(mechanism),
             // 打开机制浏览器回调（可由外部设置）
-            null
+            null,
+            // 传递当前焦点机制
+            currentMechanismFilter
+        ));
+    }
+
+    /**
+     * 刷新树视图的单元格（用于更新焦点状态）
+     */
+    private void refreshTreeCells() {
+        if (!mechanismFilterEnabled || pathResolver == null) return;
+
+        // 重新设置单元格工厂以刷新所有单元格的焦点状态
+        treeView.setCellFactory(FocusAwareTreeCell.createFactory(
+            pathResolver,
+            mechanism -> setMechanismFilter(mechanism),
+            null,
+            currentMechanismFilter
         ));
     }
 
@@ -894,14 +977,28 @@ public class SearchableTreeView<T> extends VBox {
     }
 
     /**
-     * 设置当前机制过滤
+     * 设置当前机制过滤（焦点）
      */
     public void setMechanismFilter(AionMechanismCategory category) {
         this.currentMechanismFilter = category;
+
+        // 更新标签栏选中状态
         if (mechanismTagBar != null) {
             mechanismTagBar.selectMechanism(category);
         }
+
+        // 刷新单元格以更新焦点视觉效果
+        refreshTreeCells();
+
+        // 执行过滤搜索
         performFilteredSearch();
+
+        // 如果有焦点机制，自动展开包含匹配文件的文件夹
+        if (category != null && originalRoot != null) {
+            autoExpandMatchingFolders(originalRoot, category);
+        }
+
+        log.debug("设置机制焦点: {}", category != null ? category.getDisplayName() : "全部");
     }
 
     /**
@@ -919,7 +1016,12 @@ public class SearchableTreeView<T> extends VBox {
         if (mechanismTagBar != null) {
             mechanismTagBar.clearSelection();
         }
+
+        // 刷新单元格
+        refreshTreeCells();
+
         performFilteredSearch();
+        log.debug("清除机制焦点");
     }
 
     /**
