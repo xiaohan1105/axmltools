@@ -173,6 +173,12 @@ public class MenuTabPaneExample {
             }
         });
 
+        // 设置路径解析器（用于右键菜单和机制检测）
+        searchableTree.setPathResolver(this::getTabFullPath);
+
+        // 启用机制过滤功能（显示机制颜色标记和增强右键菜单）
+        searchableTree.enableMechanismFilter(true);
+
         return searchableTree;
     }
 
