@@ -1,0 +1,97 @@
+{
+	"file_path":"D:\\AionReal58\\AionMap\\客户端XML\\data\\China\\Quest\\quest\\quest.xml",
+	"xml_root_tag":"quests",
+	"list":[
+		{
+			"addDataNode":"fighter_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__fighter_selectable_reward__data",
+			"sql":"select * from quest__fighter_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"knight_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__knight_selectable_reward__data",
+			"sql":"select * from quest__knight_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"ranger_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__ranger_selectable_reward__data",
+			"sql":"select * from quest__ranger_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"assassin_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__assassin_selectable_reward__data",
+			"sql":"select * from quest__assassin_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"wizard_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__wizard_selectable_reward__data",
+			"sql":"select * from quest__wizard_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"elementalist_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__elementalist_selectable_reward__data",
+			"sql":"select * from quest__elementalist_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"priest_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__priest_selectable_reward__data",
+			"sql":"select * from quest__priest_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"chanter_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__chanter_selectable_reward__data",
+			"sql":"select * from quest__chanter_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"gunner_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__gunner_selectable_reward__data",
+			"sql":"select * from quest__gunner_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"bard_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__bard_selectable_reward__data",
+			"sql":"select * from quest__bard_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		},
+		{
+			"addDataNode":"rider_selectable_reward",
+			"associatedFiled":"id",
+			"xml_tag":"data",
+			"db_column":"data",
+			"table_name":"quest__rider_selectable_reward__data",
+			"sql":"select * from quest__rider_selectable_reward__data where id = '#associated_filed' order by CAST(id AS UNSIGNED) ASC"
+		}
+	],
+	"xml_item_tag":"quest",
+	"table_name":"quest",
+	"sql":"select * from quest order by CAST(id AS UNSIGNED) ASC"
+}

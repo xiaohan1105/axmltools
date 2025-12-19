@@ -490,10 +490,46 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
      * 设置右键菜单
      */
     private void setupContextMenu() {
-        ContextMenu contextMenu = new ContextMenu();
+        // 文件右键菜单
+        ContextMenu fileContextMenu = createFileContextMenu();
 
-        // ========== 文件操作组 ==========
-        // 查看文件机制
+        // 文件夹右键菜单
+        ContextMenu folderContextMenu = createFolderContextMenu();
+
+        // 根据节点类型显示不同菜单
+        setOnContextMenuRequested(event -> {
+            TreeItem<T> item = getTreeItem();
+            if (item != null) {
+                if (item.isLeaf()) {
+                    fileContextMenu.show(this, event.getScreenX(), event.getScreenY());
+                } else {
+                    folderContextMenu.show(this, event.getScreenX(), event.getScreenY());
+                }
+                event.consume();
+            }
+        });
+    }
+
+    /**
+     * 创建文件右键菜单
+     */
+    private ContextMenu createFileContextMenu() {
+        ContextMenu menu = new ContextMenu();
+
+        // ========== 打开操作组 ==========
+        MenuItem openItem = new MenuItem("📄 打开文件");
+        openItem.setOnAction(e -> openSelectedFile());
+
+        MenuItem openLocationItem = new MenuItem("📂 打开文件位置");
+        openLocationItem.setOnAction(e -> openFileLocation());
+
+        MenuItem openWithDefaultItem = new MenuItem("🔗 用默认程序打开");
+        openWithDefaultItem.setOnAction(e -> openWithDefaultApp());
+
+        MenuItem openWithNotepadItem = new MenuItem("📝 用记事本打开");
+        openWithNotepadItem.setOnAction(e -> openWithNotepad());
+
+        // ========== 机制操作组 ==========
         MenuItem viewMechanismItem = new MenuItem("🎮 查看文件机制");
         viewMechanismItem.setOnAction(e -> {
             TreeItem<T> selected = getTreeItem();
@@ -502,14 +538,11 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
                 if (path != null) {
                     AionMechanismCategory mechanism = MechanismFileMapper.detectMechanismStatic(path);
                     showMechanismInfo(mechanism, path);
-                    // 记录访问
                     notifyFileAccessed(path);
                 }
             }
         });
 
-        // ========== 焦点操作组 ==========
-        // 聚焦此机制
         MenuItem focusMechanismItem = new MenuItem("🎯 聚焦此机制");
         focusMechanismItem.setOnAction(e -> {
             TreeItem<T> selected = getTreeItem();
@@ -523,7 +556,6 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
             }
         });
 
-        // 清除焦点
         MenuItem clearFocusItem = new MenuItem("✕ 清除焦点");
         clearFocusItem.setOnAction(e -> {
             if (onFilterByMechanism != null) {
@@ -531,8 +563,7 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
             }
         });
 
-        // ========== 关联文件组 ==========
-        // 查找关联文件（同机制）
+        // ========== 关联操作组 ==========
         MenuItem findRelatedItem = new MenuItem("🔗 查找同类型文件");
         findRelatedItem.setOnAction(e -> {
             TreeItem<T> selected = getTreeItem();
@@ -543,7 +574,6 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
                     if (onFindRelatedFiles != null) {
                         onFindRelatedFiles.accept(mechanism);
                     } else if (onFilterByMechanism != null) {
-                        // 回退到聚焦机制
                         onFilterByMechanism.accept(mechanism);
                     }
                     notifyFileAccessed(path);
@@ -551,9 +581,8 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
             }
         });
 
-        // 在机制浏览器中查看
-        MenuItem openExplorerItem = new MenuItem("📊 在机制浏览器中打开");
-        openExplorerItem.setOnAction(e -> {
+        MenuItem openMechExplorerItem = new MenuItem("📊 在机制浏览器中打开");
+        openMechExplorerItem.setOnAction(e -> {
             TreeItem<T> selected = getTreeItem();
             if (selected != null && pathResolver != null && onOpenMechanismExplorer != null) {
                 String path = pathResolver.apply(selected);
@@ -566,20 +595,14 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
         });
 
         // ========== 复制操作组 ==========
-        // 复制机制名称
-        MenuItem copyMechanismItem = new MenuItem("📋 复制机制名称");
-        copyMechanismItem.setOnAction(e -> {
+        MenuItem copyFileNameItem = new MenuItem("📋 复制文件名");
+        copyFileNameItem.setOnAction(e -> {
             TreeItem<T> selected = getTreeItem();
-            if (selected != null && pathResolver != null) {
-                String path = pathResolver.apply(selected);
-                if (path != null) {
-                    AionMechanismCategory mechanism = MechanismFileMapper.detectMechanismStatic(path);
-                    ContextMenuFactory.copyToClipboard(mechanism.getDisplayName());
-                }
+            if (selected != null) {
+                ContextMenuFactory.copyToClipboard(selected.getValue().toString());
             }
         });
 
-        // 复制文件路径
         MenuItem copyPathItem = new MenuItem("📁 复制文件路径");
         copyPathItem.setOnAction(e -> {
             TreeItem<T> selected = getTreeItem();
@@ -591,48 +614,489 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
             }
         });
 
-        // 分隔符
-        SeparatorMenuItem separator1 = new SeparatorMenuItem();
-        SeparatorMenuItem separator2 = new SeparatorMenuItem();
-        SeparatorMenuItem separator3 = new SeparatorMenuItem();
+        MenuItem copyMechanismItem = new MenuItem("🎮 复制机制名称");
+        copyMechanismItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null && pathResolver != null) {
+                String path = pathResolver.apply(selected);
+                if (path != null) {
+                    AionMechanismCategory mechanism = MechanismFileMapper.detectMechanismStatic(path);
+                    ContextMenuFactory.copyToClipboard(mechanism.getDisplayName());
+                }
+            }
+        });
 
-        contextMenu.getItems().addAll(
+        MenuItem copyRelativePathItem = new MenuItem("📄 复制相对路径");
+        copyRelativePathItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null && pathResolver != null) {
+                String path = pathResolver.apply(selected);
+                if (path != null) {
+                    // 尝试获取相对路径（从XML根目录）
+                    String relativePath = getRelativePath(path);
+                    ContextMenuFactory.copyToClipboard(relativePath);
+                }
+            }
+        });
+
+        // 分隔符
+        SeparatorMenuItem sep1 = new SeparatorMenuItem();
+        SeparatorMenuItem sep2 = new SeparatorMenuItem();
+        SeparatorMenuItem sep3 = new SeparatorMenuItem();
+        SeparatorMenuItem sep4 = new SeparatorMenuItem();
+
+        menu.getItems().addAll(
+            openItem,
+            openLocationItem,
+            openWithDefaultItem,
+            openWithNotepadItem,
+            sep1,
             viewMechanismItem,
-            separator1,
             focusMechanismItem,
             clearFocusItem,
-            separator2,
+            sep2,
             findRelatedItem,
-            openExplorerItem,
-            separator3,
-            copyMechanismItem,
-            copyPathItem
+            openMechExplorerItem,
+            sep3,
+            copyFileNameItem,
+            copyPathItem,
+            copyRelativePathItem,
+            copyMechanismItem
         );
 
-        // 动态显示菜单项
-        contextMenu.setOnShowing(e -> {
+        // 动态禁用项
+        menu.setOnShowing(e -> {
             TreeItem<T> selected = getTreeItem();
-            boolean isFile = selected != null && selected.isLeaf();
-            boolean hasPath = isFile && pathResolver != null;
+            boolean hasPath = selected != null && pathResolver != null;
             boolean hasFocus = focusedMechanism != null;
 
+            openItem.setDisable(!hasPath);
+            openLocationItem.setDisable(!hasPath);
+            openWithDefaultItem.setDisable(!hasPath);
+            openWithNotepadItem.setDisable(!hasPath);
             viewMechanismItem.setDisable(!hasPath);
             focusMechanismItem.setDisable(!hasPath || onFilterByMechanism == null);
             clearFocusItem.setDisable(!hasFocus || onFilterByMechanism == null);
             findRelatedItem.setDisable(!hasPath);
-            openExplorerItem.setDisable(!hasPath || onOpenMechanismExplorer == null);
-            copyMechanismItem.setDisable(!hasPath);
+            openMechExplorerItem.setDisable(!hasPath || onOpenMechanismExplorer == null);
+            copyFileNameItem.setDisable(selected == null);
             copyPathItem.setDisable(!hasPath);
+            copyRelativePathItem.setDisable(!hasPath);
+            copyMechanismItem.setDisable(!hasPath);
         });
 
-        // 只为文件节点设置右键菜单
-        setOnContextMenuRequested(event -> {
-            TreeItem<T> item = getTreeItem();
-            if (item != null && item.isLeaf()) {
-                contextMenu.show(this, event.getScreenX(), event.getScreenY());
-                event.consume();
+        return menu;
+    }
+
+    /**
+     * 创建文件夹右键菜单
+     */
+    private ContextMenu createFolderContextMenu() {
+        ContextMenu menu = new ContextMenu();
+
+        // ========== 打开操作组 ==========
+        MenuItem openLocationItem = new MenuItem("📂 打开文件夹位置");
+        openLocationItem.setOnAction(e -> openFolderLocation());
+
+        MenuItem openInExplorerItem = new MenuItem("🗂 在资源管理器中打开");
+        openInExplorerItem.setOnAction(e -> openFolderInExplorer());
+
+        // ========== 展开/折叠操作组 ==========
+        MenuItem expandItem = new MenuItem("📂 展开此文件夹");
+        expandItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null) {
+                expandRecursively(selected, true);
             }
         });
+
+        MenuItem collapseItem = new MenuItem("📁 折叠此文件夹");
+        collapseItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null) {
+                expandRecursively(selected, false);
+            }
+        });
+
+        MenuItem expandAllItem = new MenuItem("📂 展开所有子文件夹");
+        expandAllItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null) {
+                expandRecursively(selected, true);
+            }
+        });
+
+        // ========== 机制统计组 ==========
+        MenuItem showMechStatsItem = new MenuItem("📊 显示机制分布");
+        showMechStatsItem.setOnAction(e -> showFolderMechanismStats());
+
+        MenuItem focusFolderMechItem = new MenuItem("🎯 聚焦文件夹主要机制");
+        focusFolderMechItem.setOnAction(e -> focusFolderPrimaryMechanism());
+
+        // ========== 复制操作组 ==========
+        MenuItem copyFolderNameItem = new MenuItem("📋 复制文件夹名");
+        copyFolderNameItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null) {
+                ContextMenuFactory.copyToClipboard(selected.getValue().toString());
+            }
+        });
+
+        MenuItem copyFolderPathItem = new MenuItem("📁 复制文件夹路径");
+        copyFolderPathItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null && pathResolver != null) {
+                String path = pathResolver.apply(selected);
+                if (path != null) {
+                    ContextMenuFactory.copyToClipboard(new File(path).getParent());
+                }
+            }
+        });
+
+        // ========== 文件列表组 ==========
+        MenuItem copyFileListItem = new MenuItem("📝 复制文件列表");
+        copyFileListItem.setOnAction(e -> copyFolderFileList());
+
+        MenuItem countFilesItem = new MenuItem("🔢 统计文件数量");
+        countFilesItem.setOnAction(e -> showFolderFileCount());
+
+        // 分隔符
+        SeparatorMenuItem sep1 = new SeparatorMenuItem();
+        SeparatorMenuItem sep2 = new SeparatorMenuItem();
+        SeparatorMenuItem sep3 = new SeparatorMenuItem();
+        SeparatorMenuItem sep4 = new SeparatorMenuItem();
+
+        menu.getItems().addAll(
+            openLocationItem,
+            openInExplorerItem,
+            sep1,
+            expandItem,
+            collapseItem,
+            expandAllItem,
+            sep2,
+            showMechStatsItem,
+            focusFolderMechItem,
+            sep3,
+            copyFolderNameItem,
+            copyFolderPathItem,
+            sep4,
+            copyFileListItem,
+            countFilesItem
+        );
+
+        return menu;
+    }
+
+    // ==================== 文件操作方法 ====================
+
+    /**
+     * 打开选中的文件
+     */
+    private void openSelectedFile() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected != null && pathResolver != null) {
+            String path = pathResolver.apply(selected);
+            if (path != null) {
+                notifyFileAccessed(path);
+                // 这里可以触发外部的打开文件回调
+            }
+        }
+    }
+
+    /**
+     * 打开文件所在位置
+     */
+    private void openFileLocation() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected != null && pathResolver != null) {
+            String path = pathResolver.apply(selected);
+            if (path != null) {
+                ContextMenuFactory.openInExplorer(path);
+            }
+        }
+    }
+
+    /**
+     * 用默认程序打开文件
+     */
+    private void openWithDefaultApp() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected != null && pathResolver != null) {
+            String path = pathResolver.apply(selected);
+            if (path != null) {
+                ContextMenuFactory.openWithDesktop(path);
+            }
+        }
+    }
+
+    /**
+     * 用记事本打开文件
+     */
+    private void openWithNotepad() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected != null && pathResolver != null) {
+            String path = pathResolver.apply(selected);
+            if (path != null) {
+                try {
+                    Runtime.getRuntime().exec(new String[]{"notepad.exe", path});
+                } catch (Exception ex) {
+                    // 尝试其他编辑器
+                    try {
+                        Runtime.getRuntime().exec(new String[]{"notepad++.exe", path});
+                    } catch (Exception ex2) {
+                        ContextMenuFactory.openWithDesktop(path);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 获取相对路径
+     */
+    private String getRelativePath(String absolutePath) {
+        // 尝试从常见的XML根目录计算相对路径
+        String[] rootMarkers = {"XML", "xml", "Config", "config", "Data", "data"};
+        for (String marker : rootMarkers) {
+            int idx = absolutePath.indexOf(File.separator + marker + File.separator);
+            if (idx >= 0) {
+                return absolutePath.substring(idx + 1);
+            }
+        }
+        // 返回文件名
+        return new File(absolutePath).getName();
+    }
+
+    // ==================== 文件夹操作方法 ====================
+
+    /**
+     * 打开文件夹位置
+     */
+    private void openFolderLocation() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected != null && pathResolver != null) {
+            // 获取第一个子文件的路径来推断文件夹路径
+            String folderPath = getFolderPath(selected);
+            if (folderPath != null) {
+                ContextMenuFactory.openInExplorer(folderPath);
+            }
+        }
+    }
+
+    /**
+     * 在资源管理器中打开文件夹
+     */
+    private void openFolderInExplorer() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected != null && pathResolver != null) {
+            String folderPath = getFolderPath(selected);
+            if (folderPath != null) {
+                try {
+                    Runtime.getRuntime().exec(new String[]{"explorer.exe", folderPath});
+                } catch (Exception ex) {
+                    ContextMenuFactory.openInExplorer(folderPath);
+                }
+            }
+        }
+    }
+
+    /**
+     * 获取文件夹路径
+     */
+    private String getFolderPath(TreeItem<T> folderItem) {
+        if (folderItem == null) return null;
+
+        // 尝试从子文件获取路径
+        for (TreeItem<T> child : folderItem.getChildren()) {
+            if (child.isLeaf() && pathResolver != null) {
+                String childPath = pathResolver.apply(child);
+                if (childPath != null) {
+                    return new File(childPath).getParent();
+                }
+            }
+        }
+
+        // 递归查找
+        for (TreeItem<T> child : folderItem.getChildren()) {
+            String path = getFolderPath(child);
+            if (path != null) {
+                return new File(path).getParent();
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 递归展开/折叠
+     */
+    private void expandRecursively(TreeItem<T> item, boolean expand) {
+        if (item == null) return;
+        item.setExpanded(expand);
+        for (TreeItem<T> child : item.getChildren()) {
+            expandRecursively(child, expand);
+        }
+    }
+
+    /**
+     * 显示文件夹机制分布统计
+     */
+    private void showFolderMechanismStats() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected == null) return;
+
+        // 统计各机制文件数量
+        java.util.Map<AionMechanismCategory, Integer> stats = new java.util.EnumMap<>(AionMechanismCategory.class);
+        countMechanismFiles(selected, stats);
+
+        // 构建显示内容
+        StringBuilder sb = new StringBuilder();
+        sb.append("📊 文件夹机制分布统计\n\n");
+
+        int total = 0;
+        java.util.List<java.util.Map.Entry<AionMechanismCategory, Integer>> sorted =
+            new java.util.ArrayList<>(stats.entrySet());
+        sorted.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+
+        for (java.util.Map.Entry<AionMechanismCategory, Integer> entry : sorted) {
+            if (entry.getValue() > 0) {
+                sb.append(String.format("%s %s: %d 个文件\n",
+                    entry.getKey().getIcon(),
+                    entry.getKey().getDisplayName(),
+                    entry.getValue()));
+                total += entry.getValue();
+            }
+        }
+        sb.append("\n总计: ").append(total).append(" 个XML文件");
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("机制分布统计");
+        alert.setHeaderText(selected.getValue().toString());
+        alert.setContentText(sb.toString());
+        alert.showAndWait();
+    }
+
+    /**
+     * 统计机制文件数量
+     */
+    private void countMechanismFiles(TreeItem<T> item, java.util.Map<AionMechanismCategory, Integer> stats) {
+        if (item == null) return;
+
+        if (item.isLeaf() && pathResolver != null) {
+            String path = pathResolver.apply(item);
+            if (path != null && path.toLowerCase().endsWith(".xml")) {
+                AionMechanismCategory mech = MechanismFileMapper.detectMechanismStatic(path);
+                stats.merge(mech, 1, Integer::sum);
+            }
+        } else {
+            for (TreeItem<T> child : item.getChildren()) {
+                countMechanismFiles(child, stats);
+            }
+        }
+    }
+
+    /**
+     * 聚焦文件夹主要机制
+     */
+    private void focusFolderPrimaryMechanism() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected == null || onFilterByMechanism == null) return;
+
+        // 统计各机制文件数量
+        java.util.Map<AionMechanismCategory, Integer> stats = new java.util.EnumMap<>(AionMechanismCategory.class);
+        countMechanismFiles(selected, stats);
+
+        // 找出数量最多的机制
+        AionMechanismCategory primary = null;
+        int maxCount = 0;
+        for (java.util.Map.Entry<AionMechanismCategory, Integer> entry : stats.entrySet()) {
+            if (entry.getValue() > maxCount && entry.getKey() != AionMechanismCategory.OTHER) {
+                maxCount = entry.getValue();
+                primary = entry.getKey();
+            }
+        }
+
+        if (primary != null) {
+            onFilterByMechanism.accept(primary);
+        }
+    }
+
+    /**
+     * 复制文件夹文件列表
+     */
+    private void copyFolderFileList() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected == null) return;
+
+        StringBuilder sb = new StringBuilder();
+        collectFileNames(selected, sb, 0);
+
+        ContextMenuFactory.copyToClipboard(sb.toString());
+    }
+
+    /**
+     * 收集文件名
+     */
+    private void collectFileNames(TreeItem<T> item, StringBuilder sb, int depth) {
+        if (item == null) return;
+
+        // 缩进
+        for (int i = 0; i < depth; i++) {
+            sb.append("  ");
+        }
+
+        if (item.isLeaf()) {
+            sb.append("📄 ").append(item.getValue()).append("\n");
+        } else {
+            sb.append("📁 ").append(item.getValue()).append("/\n");
+            for (TreeItem<T> child : item.getChildren()) {
+                collectFileNames(child, sb, depth + 1);
+            }
+        }
+    }
+
+    /**
+     * 显示文件夹文件数量
+     */
+    private void showFolderFileCount() {
+        TreeItem<T> selected = getTreeItem();
+        if (selected == null) return;
+
+        int[] counts = countFiles(selected);
+
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("文件数量统计");
+        alert.setHeaderText(selected.getValue().toString());
+        alert.setContentText(String.format(
+            "📁 文件夹: %d 个\n📄 文件: %d 个\n\n总计: %d 个节点",
+            counts[0], counts[1], counts[0] + counts[1]
+        ));
+        alert.showAndWait();
+    }
+
+    /**
+     * 统计文件数量 [文件夹数, 文件数]
+     */
+    private int[] countFiles(TreeItem<T> item) {
+        if (item == null) return new int[]{0, 0};
+
+        if (item.isLeaf()) {
+            return new int[]{0, 1};
+        }
+
+        int folders = 0;
+        int files = 0;
+        for (TreeItem<T> child : item.getChildren()) {
+            int[] childCounts = countFiles(child);
+            if (child.isLeaf()) {
+                files++;
+            } else {
+                folders++;
+            }
+            folders += childCounts[0];
+            files += childCounts[1];
+        }
+        return new int[]{folders, files};
     }
 
     /**
