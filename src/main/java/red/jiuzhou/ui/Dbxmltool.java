@@ -43,6 +43,7 @@ import red.jiuzhou.ui.components.EnhancedStatusBar;
 import red.jiuzhou.ui.components.HotkeyManager;
 import red.jiuzhou.ui.components.SearchableTreeView;
 import red.jiuzhou.agent.ui.AgentChatStage;
+import red.jiuzhou.ui.GameToolsStage;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -601,6 +602,24 @@ public class Dbxmltool extends Application {
         ));
         aiAgentBtn.setStyle("-fx-background-color: #E8F5E9; -fx-font-weight: bold;");
 
+        // 刷怪点工具按钮 - 坐标生成、概率模拟
+        Button gameToolsBtn = new Button("🎯 刷怪工具");
+        gameToolsBtn.setTooltip(new Tooltip(
+            "刷怪点规划与概率模拟\n\n" +
+            "📍 刷怪点生成:\n" +
+            "• 巡逻路线规划（路径点均匀分布）\n" +
+            "• 圆形刷怪区域（BOSS周围刷怪）\n" +
+            "• 环形刷怪区域（安全区外围刷怪）\n" +
+            "• 结果可直接复制为XML配置\n\n" +
+            "🎲 概率模拟器:\n" +
+            "• 怪物刷新权重验证\n" +
+            "• 掉落概率测试（独立/保底）\n" +
+            "• 刷新比例可视化统计\n\n" +
+            "💡 快捷操作:\n" +
+            "→ 选中刷怪配置后右键可直接分析"
+        ));
+        gameToolsBtn.setStyle("-fx-background-color: #FFF3E0;");
+
         // 机制关系图按钮 - 27个机制间的依赖关系可视化
         Button mechanismRelationBtn = new Button("🔗 关系图");
         mechanismRelationBtn.setTooltip(new Tooltip(
@@ -731,6 +750,19 @@ public class Dbxmltool extends Application {
             }
         });
 
+        // 刷怪工具 - 打开游戏工具集窗口
+        gameToolsBtn.setOnAction(event -> {
+            try {
+                log.info("打开刷怪工具");
+                GameToolsStage stage = new GameToolsStage();
+                stage.initOwner(primaryStage);
+                stage.show();
+            } catch (Exception e) {
+                log.error("打开刷怪工具失败", e);
+                showError("打开刷怪工具失败: " + e.getMessage());
+            }
+        });
+
         // 机制关系图 - 打开机制关系图可视化窗口
         mechanismRelationBtn.setOnAction(event -> {
             try {
@@ -847,10 +879,10 @@ public class Dbxmltool extends Application {
         javafx.scene.layout.Region spacer = new javafx.scene.layout.Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
-        // 组装工具栏:按功能模块分组（优化后的布局，更符合设计师直觉）
-        // [数据浏览] | [数据操作] | [关系分析] | [设计洞察] | [安全管理] ... [状态信息]
+        // 组装工具栏:按功能模块分组（优化后的布局，更符合游戏设计师直觉）
+        // [数据配置] | [数据操作] | [关系分析] | [设计洞察] | [游戏工具] | [安全管理] ... [状态信息]
         toolBar.getItems().addAll(
-            // 数据浏览模块 - 查看和配置数据源
+            // 数据配置模块 - 配置数据源和路径
             confButton, addDirectoryBtn,
             new Separator(),
             // 数据操作模块 - 统一的数据操作入口
@@ -861,6 +893,9 @@ public class Dbxmltool extends Application {
             new Separator(),
             // 设计洞察模块 - AI分析和可视化
             mechanismExplorerBtn, designInsightBtn, aiAgentBtn,
+            new Separator(),
+            // 游戏工具模块 - 刷怪点规划和概率模拟
+            gameToolsBtn,
             new Separator(),
             // 数据处理模块 - 搜索和备份
             searchReplaceBtn, backupManagerBtn,

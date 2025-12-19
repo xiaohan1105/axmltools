@@ -6,6 +6,7 @@ import java.util.List;
 import red.jiuzhou.agent.ui.AgentChatStage;
 import red.jiuzhou.ui.AionMechanismExplorerStage;
 import red.jiuzhou.ui.DesignerInsightStage;
+import red.jiuzhou.ui.GameToolsStage;
 import red.jiuzhou.ui.MechanismRelationshipStage;
 import red.jiuzhou.ui.ThemeStudioStage;
 
@@ -61,6 +62,14 @@ public final class FeatureRegistry {
                 "通过自然语言查询和修改游戏数据，支持智能SQL生成、安全审核和操作回滚",
                 FeatureCategory.ANALYTICS,
                 new StageFeatureLauncher(AgentChatStage::new)
+        ));
+
+        features.add(new FeatureDescriptor(
+                "game-tools",
+                "刷怪工具",
+                "刷怪点规划与概率模拟：巡逻路线生成、圆形/环形刷怪区域、怪物刷新权重验证、掉落概率测试",
+                FeatureCategory.GAME_TOOLS,
+                new StageFeatureLauncher(GameToolsStage::new)
         ));
 
         // TODO: 以下特性暂未实现，待添加对应的Stage类
