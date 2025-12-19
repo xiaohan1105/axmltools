@@ -50,6 +50,15 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
     /** 是否启用焦点模式 */
     private boolean focusModeEnabled = true;
 
+    /** 是否启用机制着色模式（文件名始终显示机制颜色） */
+    private boolean mechanismColoringEnabled = true;
+
+    /** 文件访问回调（用于跟踪工作流） */
+    private Consumer<String> onFileAccessed;
+
+    /** 关联文件操作回调 */
+    private Consumer<AionMechanismCategory> onFindRelatedFiles;
+
     /** 机制标记圆点大小 */
     private static final double MARKER_SIZE = 7;
 
@@ -131,64 +140,163 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
 
     /**
      * 创建文件节点内容
+     *
+     * 支持两种着色模式：
+     * 1. 机制着色模式（mechanismColoringEnabled）：文件名始终显示对应机制的颜色
+     * 2. 焦点模式（focusModeEnabled）：焦点机制高亮，其他淡化
      */
     private HBox createFileContent(String text, AionMechanismCategory mechanism, String filePath) {
         HBox container = new HBox(6);
         container.setAlignment(Pos.CENTER_LEFT);
         container.setPadding(new Insets(1, 0, 1, 0));
 
-        // 机制颜色标记
-        Circle marker = new Circle(MARKER_SIZE / 2);
+        String mechColor = mechanism.getColor();
+
+        // 机制颜色标记（左侧竖条）
+        Region colorBar = new Region();
+        colorBar.setMinWidth(3);
+        colorBar.setMaxWidth(3);
+        colorBar.setMinHeight(16);
         try {
-            Color color = Color.web(mechanism.getColor());
-            marker.setFill(color);
-            marker.setStroke(color.darker());
-            marker.setStrokeWidth(0.8);
+            colorBar.setStyle(String.format(
+                "-fx-background-color: %s; -fx-background-radius: 2;",
+                mechColor
+            ));
 
             // 如果是焦点机制，添加发光效果
             if (mechanism == focusedMechanism && focusModeEnabled) {
-                Glow glow = new Glow(0.6);
-                marker.setEffect(glow);
+                DropShadow glow = new DropShadow();
+                glow.setColor(Color.web(mechColor, 0.6));
+                glow.setRadius(4);
+                glow.setSpread(0.3);
+                colorBar.setEffect(glow);
             }
         } catch (Exception e) {
-            marker.setFill(Color.GRAY);
-            marker.setStroke(Color.DARKGRAY);
+            colorBar.setStyle("-fx-background-color: #6c757d; -fx-background-radius: 2;");
         }
 
-        // 文件图标
-        Label fileIcon = new Label("📄");
+        // 文件图标（根据机制类型选择）
+        Label fileIcon = new Label(getFileIconForMechanism(mechanism));
         fileIcon.setStyle("-fx-font-size: 11px;");
 
-        // 文件名标签
+        // 文件名标签 - 根据机制着色
         Label nameLabel = new Label(text);
         nameLabel.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(nameLabel, Priority.ALWAYS);
 
-        // 根据焦点状态设置样式
-        if (focusModeEnabled && focusedMechanism != null) {
-            if (mechanism == focusedMechanism) {
-                // 匹配：高亮显示
-                nameLabel.setStyle(String.format(
-                    "-fx-font-weight: bold; -fx-text-fill: %s;",
-                    darkenColor(mechanism.getColor(), 0.2)
-                ));
-            } else {
-                // 不匹配：淡化显示
-                nameLabel.setStyle("-fx-text-fill: #adb5bd;");
-            }
-        } else {
-            nameLabel.setStyle("-fx-text-fill: #212529;");
-        }
+        // 应用着色样式
+        applyFileNameStyle(nameLabel, mechanism, mechColor);
 
-        // 机制标签（只为焦点机制或非OTHER显示）
+        // 机制标签（只为非OTHER显示）
         if (mechanism != AionMechanismCategory.OTHER) {
             Label mechanismLabel = createMechanismBadge(mechanism);
-            container.getChildren().addAll(marker, fileIcon, nameLabel, mechanismLabel);
+            container.getChildren().addAll(colorBar, fileIcon, nameLabel, mechanismLabel);
         } else {
-            container.getChildren().addAll(marker, fileIcon, nameLabel);
+            container.getChildren().addAll(colorBar, fileIcon, nameLabel);
         }
 
         return container;
+    }
+
+    /**
+     * 应用文件名样式
+     */
+    private void applyFileNameStyle(Label nameLabel, AionMechanismCategory mechanism, String mechColor) {
+        StringBuilder style = new StringBuilder();
+
+        // 机制着色模式：始终使用机制颜色
+        if (mechanismColoringEnabled && mechanism != AionMechanismCategory.OTHER) {
+            String textColor = darkenColor(mechColor, 0.15);
+            style.append("-fx-text-fill: ").append(textColor).append("; ");
+        } else {
+            style.append("-fx-text-fill: #212529; ");
+        }
+
+        // 焦点模式叠加效果
+        if (focusModeEnabled && focusedMechanism != null) {
+            if (mechanism == focusedMechanism) {
+                // 匹配焦点：加粗 + 强调色
+                style.append("-fx-font-weight: bold; ");
+                style.append("-fx-text-fill: ").append(darkenColor(mechColor, 0.1)).append("; ");
+            } else {
+                // 不匹配：淡化（但保留机制色调）
+                if (mechanismColoringEnabled && mechanism != AionMechanismCategory.OTHER) {
+                    style.append("-fx-text-fill: ").append(lightenColor(mechColor, 0.5)).append("; ");
+                } else {
+                    style.append("-fx-text-fill: #adb5bd; ");
+                }
+            }
+        }
+
+        nameLabel.setStyle(style.toString());
+    }
+
+    /**
+     * 根据机制类型获取文件图标
+     */
+    private String getFileIconForMechanism(AionMechanismCategory mechanism) {
+        switch (mechanism) {
+            case ITEM:
+                return "🎁";
+            case NPC:
+                return "👾";
+            case SKILL:
+                return "⚔";
+            case QUEST:
+                return "📜";
+            case DROP:
+                return "💎";
+            case INSTANCE:
+                return "🏰";
+            case SHOP:
+                return "🛒";
+            case CRAFT:
+                return "🔨";
+            case ABYSS:
+                return "⚡";
+            case PET:
+                return "🐾";
+            case ENCHANT:
+                return "✨";
+            case TITLE:
+                return "🏅";
+            case PORTAL:
+                return "🚪";
+            case CLIENT_STRINGS:
+                return "📝";
+            case GOTCHA:
+                return "🎰";
+            case LEGION:
+                return "🏴";
+            case HOUSING:
+                return "🏠";
+            case LUNA:
+                return "🌙";
+            case STIGMA_TRANSFORM:
+                return "💠";
+            case NPC_AI:
+                return "🤖";
+            case PLAYER_GROWTH:
+                return "📈";
+            case PVP_RANKING:
+                return "🏆";
+            case TIME_EVENT:
+                return "⏰";
+            case ANIMATION:
+                return "🎬";
+            case ANIMATION_MARKERS:
+                return "📌";
+            case CHARACTER_PRESET:
+                return "👤";
+            case SUBZONE:
+                return "🗺";
+            case ID_MAPPING:
+                return "🔢";
+            case GAME_CONFIG:
+                return "⚙";
+            default:
+                return "📄";
+        }
     }
 
     /**
@@ -384,6 +492,7 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
     private void setupContextMenu() {
         ContextMenu contextMenu = new ContextMenu();
 
+        // ========== 文件操作组 ==========
         // 查看文件机制
         MenuItem viewMechanismItem = new MenuItem("🎮 查看文件机制");
         viewMechanismItem.setOnAction(e -> {
@@ -393,10 +502,13 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
                 if (path != null) {
                     AionMechanismCategory mechanism = MechanismFileMapper.detectMechanismStatic(path);
                     showMechanismInfo(mechanism, path);
+                    // 记录访问
+                    notifyFileAccessed(path);
                 }
             }
         });
 
+        // ========== 焦点操作组 ==========
         // 聚焦此机制
         MenuItem focusMechanismItem = new MenuItem("🎯 聚焦此机制");
         focusMechanismItem.setOnAction(e -> {
@@ -406,6 +518,7 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
                 if (path != null) {
                     AionMechanismCategory mechanism = MechanismFileMapper.detectMechanismStatic(path);
                     onFilterByMechanism.accept(mechanism);
+                    notifyFileAccessed(path);
                 }
             }
         });
@@ -418,6 +531,26 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
             }
         });
 
+        // ========== 关联文件组 ==========
+        // 查找关联文件（同机制）
+        MenuItem findRelatedItem = new MenuItem("🔗 查找同类型文件");
+        findRelatedItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null && pathResolver != null) {
+                String path = pathResolver.apply(selected);
+                if (path != null) {
+                    AionMechanismCategory mechanism = MechanismFileMapper.detectMechanismStatic(path);
+                    if (onFindRelatedFiles != null) {
+                        onFindRelatedFiles.accept(mechanism);
+                    } else if (onFilterByMechanism != null) {
+                        // 回退到聚焦机制
+                        onFilterByMechanism.accept(mechanism);
+                    }
+                    notifyFileAccessed(path);
+                }
+            }
+        });
+
         // 在机制浏览器中查看
         MenuItem openExplorerItem = new MenuItem("📊 在机制浏览器中打开");
         openExplorerItem.setOnAction(e -> {
@@ -427,14 +560,12 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
                 if (path != null) {
                     AionMechanismCategory mechanism = MechanismFileMapper.detectMechanismStatic(path);
                     onOpenMechanismExplorer.accept(mechanism);
+                    notifyFileAccessed(path);
                 }
             }
         });
 
-        // 分隔符
-        SeparatorMenuItem separator1 = new SeparatorMenuItem();
-        SeparatorMenuItem separator2 = new SeparatorMenuItem();
-
+        // ========== 复制操作组 ==========
         // 复制机制名称
         MenuItem copyMechanismItem = new MenuItem("📋 复制机制名称");
         copyMechanismItem.setOnAction(e -> {
@@ -448,14 +579,34 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
             }
         });
 
+        // 复制文件路径
+        MenuItem copyPathItem = new MenuItem("📁 复制文件路径");
+        copyPathItem.setOnAction(e -> {
+            TreeItem<T> selected = getTreeItem();
+            if (selected != null && pathResolver != null) {
+                String path = pathResolver.apply(selected);
+                if (path != null) {
+                    ContextMenuFactory.copyToClipboard(path);
+                }
+            }
+        });
+
+        // 分隔符
+        SeparatorMenuItem separator1 = new SeparatorMenuItem();
+        SeparatorMenuItem separator2 = new SeparatorMenuItem();
+        SeparatorMenuItem separator3 = new SeparatorMenuItem();
+
         contextMenu.getItems().addAll(
             viewMechanismItem,
             separator1,
             focusMechanismItem,
             clearFocusItem,
-            openExplorerItem,
             separator2,
-            copyMechanismItem
+            findRelatedItem,
+            openExplorerItem,
+            separator3,
+            copyMechanismItem,
+            copyPathItem
         );
 
         // 动态显示菜单项
@@ -468,8 +619,10 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
             viewMechanismItem.setDisable(!hasPath);
             focusMechanismItem.setDisable(!hasPath || onFilterByMechanism == null);
             clearFocusItem.setDisable(!hasFocus || onFilterByMechanism == null);
+            findRelatedItem.setDisable(!hasPath);
             openExplorerItem.setDisable(!hasPath || onOpenMechanismExplorer == null);
             copyMechanismItem.setDisable(!hasPath);
+            copyPathItem.setDisable(!hasPath);
         });
 
         // 只为文件节点设置右键菜单
@@ -480,6 +633,15 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
                 event.consume();
             }
         });
+    }
+
+    /**
+     * 通知文件被访问（用于工作流跟踪）
+     */
+    private void notifyFileAccessed(String filePath) {
+        if (onFileAccessed != null && filePath != null) {
+            onFileAccessed.accept(filePath);
+        }
     }
 
     /**
@@ -572,6 +734,34 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
     }
 
     /**
+     * 设置文件访问回调（用于工作流跟踪）
+     */
+    public void setOnFileAccessed(Consumer<String> callback) {
+        this.onFileAccessed = callback;
+    }
+
+    /**
+     * 设置关联文件操作回调
+     */
+    public void setOnFindRelatedFiles(Consumer<AionMechanismCategory> callback) {
+        this.onFindRelatedFiles = callback;
+    }
+
+    /**
+     * 设置是否启用机制着色模式
+     */
+    public void setMechanismColoringEnabled(boolean enabled) {
+        this.mechanismColoringEnabled = enabled;
+    }
+
+    /**
+     * 获取是否启用机制着色模式
+     */
+    public boolean isMechanismColoringEnabled() {
+        return mechanismColoringEnabled;
+    }
+
+    /**
      * 创建工厂方法
      */
     public static <T> javafx.util.Callback<TreeView<T>, TreeCell<T>> createFactory(
@@ -585,6 +775,26 @@ public class FocusAwareTreeCell<T> extends TreeCell<T> {
             cell.setOnFilterByMechanism(onFilterByMechanism);
             cell.setOnOpenMechanismExplorer(onOpenMechanismExplorer);
             cell.setFocusedMechanism(focusedMechanism);
+            return cell;
+        };
+    }
+
+    /**
+     * 创建带工作流跟踪的工厂方法
+     */
+    public static <T> javafx.util.Callback<TreeView<T>, TreeCell<T>> createFactoryWithTracking(
+            Function<TreeItem<T>, String> pathResolver,
+            Consumer<AionMechanismCategory> onFilterByMechanism,
+            Consumer<AionMechanismCategory> onOpenMechanismExplorer,
+            AionMechanismCategory focusedMechanism,
+            Consumer<String> onFileAccessed) {
+
+        return treeView -> {
+            FocusAwareTreeCell<T> cell = new FocusAwareTreeCell<>(pathResolver);
+            cell.setOnFilterByMechanism(onFilterByMechanism);
+            cell.setOnOpenMechanismExplorer(onOpenMechanismExplorer);
+            cell.setFocusedMechanism(focusedMechanism);
+            cell.setOnFileAccessed(onFileAccessed);
             return cell;
         };
     }
