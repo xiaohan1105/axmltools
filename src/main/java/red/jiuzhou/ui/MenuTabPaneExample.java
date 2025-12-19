@@ -15,6 +15,8 @@ import red.jiuzhou.util.YamlUtils;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -30,6 +32,9 @@ public class MenuTabPaneExample {
 
     private AIAssistant aiAssistant;
     private FeatureGateway featureGateway;
+
+    /** TreeItem 到完整文件路径的映射（用于右键菜单和文件操作） */
+    private final Map<TreeItem<String>, String> treeItemPathMap = new WeakHashMap<>();
 
     /**
      * 功能网关接口 - 用于扩展功能集成
@@ -189,6 +194,12 @@ public class MenuTabPaneExample {
         for (int i = 0; i < children.size(); i++) {
             JSONObject childNode = children.getJSONObject(i);
             TreeItem<String> item = new TreeItem<>(childNode.getString("name"));
+
+            // 保存完整路径到 Map（用于右键菜单和文件操作）
+            if (childNode.containsKey("path")) {
+                treeItemPathMap.put(item, childNode.getString("path"));
+            }
+
             parentItem.getChildren().add(item);
             // 递归调用
             if (childNode.containsKey("children")) {
@@ -231,8 +242,21 @@ public class MenuTabPaneExample {
 
         }
     }
+    /**
+     * 获取树节点的完整文件路径
+     * 优先从 Map 读取（包含完整路径和扩展名），否则递归构建
+     */
     private String getTabFullPath(TreeItem<String> treeItem) {
-        return  getParetnPath(treeItem, treeItem.getValue());
+        if (treeItem == null) return "";
+
+        // 优先从 Map 获取完整路径（含扩展名）
+        String path = treeItemPathMap.get(treeItem);
+        if (path != null && !path.isEmpty()) {
+            return path;
+        }
+
+        // 回退：递归构建路径（用于兼容旧代码或未设置 path 的情况）
+        return getParetnPath(treeItem, treeItem.getValue());
     }
 
     private String getParetnPath(TreeItem<String> treeItem, String cpath){
